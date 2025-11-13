@@ -1,6 +1,5 @@
 azure-functions
 azure-functions-worker
-pymongo>=4.0.0
+pymongo==3.12.3
 azure-communication-callautomation>=1.0.0
-
 
