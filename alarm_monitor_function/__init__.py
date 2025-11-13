@@ -5,7 +5,7 @@ Azure Function App to monitor CosmosDB for Test2OPCUA:CommonAlarm and make phone
 import logging
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 import azure.functions as func
 from pymongo import MongoClient
 from azure.communication.callautomation import CallAutomationClient, PhoneNumberIdentifier
@@ -22,6 +22,30 @@ CALLBACK_URL = os.environ.get("CALLBACK_URL", "")
 
 # Track last alarm state (in production, use Azure Table Storage or CosmosDB)
 last_alarm_state = {}
+
+
+def parse_timestamp(timestamp_value):
+    """
+    Parse timestamp from document - handles Windows FILETIME, Unix timestamps, etc.
+    Returns datetime object
+    """
+    try:
+        if isinstance(timestamp_value, (int, float)):
+            # Windows FILETIME: 100-nanosecond intervals since January 1, 1601
+            if 1.3e17 <= timestamp_value <= 1.5e17:
+                windows_epoch = datetime(1601, 1, 1)
+                return windows_epoch + timedelta(microseconds=timestamp_value / 10)
+            elif timestamp_value > 1e15:  # Nanoseconds
+                return datetime.fromtimestamp(timestamp_value / 1e9)
+            elif timestamp_value > 1e12:  # Microseconds
+                return datetime.fromtimestamp(timestamp_value / 1e6)
+            elif timestamp_value > 1e9:  # Milliseconds
+                return datetime.fromtimestamp(timestamp_value / 1e3)
+            else:  # Seconds
+                return datetime.fromtimestamp(timestamp_value)
+    except (ValueError, OSError) as e:
+        logging.error(f"Error parsing timestamp {timestamp_value}: {e}")
+    return None
 
 
 def check_alarm_in_cosmosdb():
@@ -47,6 +71,13 @@ def check_alarm_in_cosmosdb():
         
         # Check for alarm field
         alarm_value = latest_doc.get(ALARM_FIELD)
+        
+        # Parse timestamp if available
+        timestamp = None
+        if 'timestamp' in latest_doc:
+            timestamp = parse_timestamp(latest_doc['timestamp'])
+        
+        logging.info(f"Latest document: ID={latest_doc.get('_id')}, Alarm={alarm_value}, Timestamp={timestamp}")
         
         return alarm_value, latest_doc
         
