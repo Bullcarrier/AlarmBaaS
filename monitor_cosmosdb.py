@@ -258,8 +258,8 @@ def get_documents_last_24h():
         db = client[COSMOS_DATABASE]
         collection = db[COSMOS_COLLECTION]
         
-        # Calculate 24 hours ago
-        now = datetime.utcnow()
+        # Calculate 24 hours ago (adjust local time -1 hour for DB comparison)
+        now = datetime.utcnow() - timedelta(hours=1)
         last_24h = now - timedelta(hours=24)
         
         # Get a sample document to understand the structure
@@ -400,9 +400,11 @@ def display_documents(documents, timestamp_field):
                         doc_timestamp = datetime.fromtimestamp(ts_value)
             
             # If document is older than 10 minutes, consider it "old" and don't call
+            # Adjust local time -1 hour for DB comparison
             is_old_alarm = False
             if doc_timestamp:
-                age_seconds = (datetime.now() - doc_timestamp).total_seconds()
+                current_time_adjusted = datetime.now() - timedelta(hours=1)
+                age_seconds = (current_time_adjusted - doc_timestamp).total_seconds()
                 if age_seconds > 600:  # 10 minutes
                     is_old_alarm = True
                     print(f"\nℹ️  Alarm detected but document is old ({int(age_seconds/60)} min old) - skipping call")
@@ -410,8 +412,10 @@ def display_documents(documents, timestamp_field):
             # Only make call if alarm state changed AND it's not an old alarm
             if not is_old_alarm and last_alarm_state.get(most_recent_doc_id) != 1:
                 # Check if we called recently (avoid spam - max 1 call per 5 minutes)
+                # Adjust local time -1 hour for DB comparison
                 last_call = last_call_time.get(most_recent_doc_id, datetime.min)
-                time_since_last_call = (datetime.now() - last_call).total_seconds()
+                current_time_adjusted = datetime.now() - timedelta(hours=1)
+                time_since_last_call = (current_time_adjusted - last_call).total_seconds()
                 
                 if time_since_last_call > 300:  # 5 minutes cooldown
                     print(f"\n{'=' * 80}")
@@ -421,7 +425,8 @@ def display_documents(documents, timestamp_field):
                     alarm_message = f"ALARM: {ALARM_FIELD} is active. Check system immediately."
                     call_success = make_phone_call(alarm_message)
                     if call_success:
-                        last_call_time[most_recent_doc_id] = datetime.now()
+                        # Store time with -1 hour adjustment
+                        last_call_time[most_recent_doc_id] = datetime.now() - timedelta(hours=1)
                         print(f"[SUCCESS] Phone call initiated successfully!")
                     else:
                         print(f"[ERROR] Phone call failed. Check configuration.")
@@ -543,9 +548,10 @@ def create_test_alarm():
     
     # Store test alarm info to trigger call
     # We'll use a special marker that the monitor will recognize
+    # Store time with -1 hour adjustment for DB comparison
     test_alarm_marker = {
         'doc_id': test_doc_id,
-        'created_at': datetime.now(),
+        'created_at': datetime.now() - timedelta(hours=1),
         'trigger_call': True
     }
     
@@ -618,8 +624,10 @@ def check_test_alarm_trigger():
                 test_alarm = data.get('test_alarm')
                 if test_alarm and test_alarm.get('trigger_call'):
                     # Check if it's recent (within last minute)
+                    # Adjust local time -1 hour for DB comparison
                     created_at = datetime.fromisoformat(test_alarm['created_at'])
-                    if (datetime.now() - created_at).total_seconds() < 60:
+                    current_time_adjusted = datetime.now() - timedelta(hours=1)
+                    if (current_time_adjusted - created_at).total_seconds() < 60:
                         # Trigger the call
                         doc_id = test_alarm['doc_id']
                         if last_call_time.get(doc_id, datetime.min) != datetime.now():
@@ -630,7 +638,8 @@ def check_test_alarm_trigger():
                             alarm_message = f"TEST ALARM: {ALARM_FIELD} is active. This is a test call."
                             call_success = make_phone_call(alarm_message)
                             if call_success:
-                                last_call_time[doc_id] = datetime.now()
+                                # Store time with -1 hour adjustment
+                                last_call_time[doc_id] = datetime.now() - timedelta(hours=1)
                                 print(f"[SUCCESS] Test phone call initiated successfully!")
                             else:
                                 print(f"[ERROR] Test phone call failed. Check configuration.")

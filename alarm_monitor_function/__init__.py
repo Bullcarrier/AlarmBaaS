@@ -28,6 +28,7 @@ def parse_timestamp(timestamp_value):
     """
     Parse timestamp from document - handles Windows FILETIME, Unix timestamps, etc.
     Returns datetime object
+    Note: Returned timestamps are in UTC; use -1 hour adjustment for comparisons
     """
     try:
         if isinstance(timestamp_value, (int, float)):
@@ -140,8 +141,11 @@ def monitor_timer_trigger(timer: func.TimerRequest) -> None:
     """
     Timer trigger function that runs every minute to check for alarms
     Configure in function.json with schedule: "0 * * * * *" (every minute)
+    Note: Time comparisons use -1 hour adjustment for DB timezone alignment
     """
-    logging.info(f"Timer trigger executed at {datetime.now()}")
+    # Adjust time -1 hour for DB comparison
+    current_time_adjusted = datetime.now() - timedelta(hours=1)
+    logging.info(f"Timer trigger executed at {datetime.now()} (DB comparison time: {current_time_adjusted})")
     
     # Check for alarm
     result = check_alarm_in_cosmosdb()
