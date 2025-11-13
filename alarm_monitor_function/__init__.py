@@ -8,11 +8,11 @@ import json
 from datetime import datetime
 import azure.functions as func
 from pymongo import MongoClient
-from azure.communication.callautomation import CallAutomationClient
+from azure.communication.callautomation import CallAutomationClient, PhoneNumberIdentifier
 
 # Configuration from environment variables
 MONGODB_CONNECTION_STRING = os.environ.get("MongoDBConnectionString")
-COSMOS_DATABASE = os.environ.get("COSMOS_DATABASE", "secomeadb")
+COSMOS_DATABASE = os.environ.get("COSMOS_DATABASE", "IoTDatabase")
 COSMOS_COLLECTION = os.environ.get("COSMOS_COLLECTION", "YourCollectionName")
 ALARM_FIELD = os.environ.get("ALARM_FIELD", "Test2OPCUA:CommonAlarm")
 PHONE_NUMBER_TO_CALL = os.environ.get("PHONE_NUMBER_TO_CALL")
@@ -78,19 +78,26 @@ def make_phone_call(message="Alarm triggered: Test2OPCUA:CommonAlarm is 1"):
         logging.info(f"Making phone call to {PHONE_NUMBER_TO_CALL}...")
         
         # Create call
-        # Note: You may need to adjust this based on your Communication Services setup
         try:
+            # Convert phone numbers to PhoneNumberIdentifier objects
+            target_phone = PhoneNumberIdentifier(PHONE_NUMBER_TO_CALL)
+            source_phone = PhoneNumberIdentifier(COMMUNICATION_SERVICE_PHONE_NUMBER)
+            
+            callback_url = CALLBACK_URL or f"https://{os.environ.get('WEBSITE_HOSTNAME', 'localhost')}/api/callbacks"
+            
             call_connection = call_automation_client.create_call(
-                target_participant=PHONE_NUMBER_TO_CALL,
-                callback_url=CALLBACK_URL or f"https://{os.environ.get('WEBSITE_HOSTNAME', 'localhost')}/api/callbacks"
+                target_participant=target_phone,
+                callback_url=callback_url,
+                source_caller_id_number=source_phone
             )
             
             logging.info(f"Call initiated: {call_connection.call_connection_id}")
             return True
         except Exception as e:
             logging.error(f"Failed to create call: {e}")
-            # Fallback: Try alternative API if available
-            logging.info("Attempting alternative call method...")
+            logging.error(f"Error type: {type(e).__name__}")
+            import traceback
+            logging.error(traceback.format_exc())
             return False
         
     except Exception as e:
