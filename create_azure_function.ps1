@@ -34,7 +34,8 @@ if (-not (Test-Path $configPath)) {
     Write-Host "✗ local_data.json not found" -ForegroundColor Red
     exit 1
 }
-$config = Get-Content $configPath | ConvertFrom-Json
+$jsonContent = Get-Content $configPath -Raw
+$config = $jsonContent | ConvertFrom-Json
 Write-Host "✓ Configuration loaded" -ForegroundColor Green
 
 # Validate required fields
@@ -49,8 +50,11 @@ $requiredFields = @(
 
 $missingFields = @()
 foreach ($field in $requiredFields) {
-    if ([string]::IsNullOrWhiteSpace($config.$field)) {
+    $value = $config.$field
+    if ([string]::IsNullOrWhiteSpace($value)) {
         $missingFields += $field
+    } else {
+        Write-Host "  ✓ $field : configured" -ForegroundColor Green
     }
 }
 
@@ -71,19 +75,40 @@ if ($FunctionAppName -eq "alarm-baas-function") {
     Write-Host "`nGenerated unique function app name: $FunctionAppName" -ForegroundColor Cyan
 }
 
+# Ensure function app name is valid (lowercase, alphanumeric and hyphens only, max 60 chars)
+$FunctionAppName = $FunctionAppName.ToLower() -replace '[^a-z0-9-]', ''
+if ($FunctionAppName.Length -gt 60) {
+    $FunctionAppName = $FunctionAppName.Substring(0, 60)
+}
+
 # Create Resource Group
-Write-Host "`nStep 4: Creating Resource Group..." -ForegroundColor Yellow
+Write-Host "`nStep 4: Creating/Verifying Resource Group..." -ForegroundColor Yellow
 $rg = Get-AzResourceGroup -Name $ResourceGroupName -ErrorAction SilentlyContinue
 if (-not $rg) {
-    $rg = New-AzResourceGroup -Name $ResourceGroupName -Location $Location
-    Write-Host "✓ Resource Group created: $ResourceGroupName" -ForegroundColor Green
+    try {
+        $rg = New-AzResourceGroup -Name $ResourceGroupName -Location $Location
+        Write-Host "✓ Resource Group created: $ResourceGroupName" -ForegroundColor Green
+    } catch {
+        Write-Host "✗ Error creating Resource Group: $_" -ForegroundColor Red
+        Write-Host "  The resource group may already exist or you may need to select a subscription." -ForegroundColor Yellow
+        exit 1
+    }
 } else {
     Write-Host "✓ Resource Group already exists: $ResourceGroupName" -ForegroundColor Green
+    $Location = $rg.Location
 }
 
 # Create Storage Account
 Write-Host "`nStep 5: Creating Storage Account..." -ForegroundColor Yellow
-$storageName = ($FunctionAppName -replace '[^a-z0-9]', '').Substring(0, [Math]::Min(24, $FunctionAppName.Length)) + "stor"
+# Storage account names must be 3-24 chars, lowercase, alphanumeric only
+$storageBase = ($FunctionAppName -replace '[^a-z0-9]', '')
+if ($storageBase.Length -gt 20) {
+    $storageBase = $storageBase.Substring(0, 20)
+}
+$storageName = $storageBase + "stor"
+if ($storageName.Length -gt 24) {
+    $storageName = $storageName.Substring(0, 24)
+}
 $storage = Get-AzStorageAccount -ResourceGroupName $ResourceGroupName -Name $storageName -ErrorAction SilentlyContinue
 if (-not $storage) {
     $storage = New-AzStorageAccount -ResourceGroupName $ResourceGroupName `
@@ -114,39 +139,69 @@ if (-not $plan) {
 Write-Host "`nStep 7: Creating Function App..." -ForegroundColor Yellow
 $functionApp = Get-AzFunctionApp -ResourceGroupName $ResourceGroupName -Name $FunctionAppName -ErrorAction SilentlyContinue
 if (-not $functionApp) {
-    $functionApp = New-AzFunctionApp -ResourceGroupName $ResourceGroupName `
-        -Name $FunctionAppName `
-        -StorageAccountName $storageName `
-        -PlanName $planName `
-        -Runtime "Python" `
-        -RuntimeVersion "3.11" `
-        -FunctionsVersion "4"
-    Write-Host "✓ Function App created: $FunctionAppName" -ForegroundColor Green
+    try {
+        $functionApp = New-AzFunctionApp -ResourceGroupName $ResourceGroupName `
+            -Name $FunctionAppName `
+            -StorageAccountName $storageName `
+            -PlanName $planName `
+            -Runtime "Python" `
+            -RuntimeVersion "3.11" `
+            -FunctionsVersion "4" `
+            -OSType "Linux"
+        Write-Host "✓ Function App created: $FunctionAppName" -ForegroundColor Green
+    } catch {
+        Write-Host "✗ Error creating Function App: $_" -ForegroundColor Red
+        Write-Host "  Trying with Windows OS type..." -ForegroundColor Yellow
+        try {
+            $functionApp = New-AzFunctionApp -ResourceGroupName $ResourceGroupName `
+                -Name $FunctionAppName `
+                -StorageAccountName $storageName `
+                -PlanName $planName `
+                -Runtime "Python" `
+                -RuntimeVersion "3.11" `
+                -FunctionsVersion "4" `
+                -OSType "Windows"
+            Write-Host "✓ Function App created with Windows OS: $FunctionAppName" -ForegroundColor Green
+        } catch {
+            Write-Host "✗ Failed to create Function App: $_" -ForegroundColor Red
+            Write-Host "  Please check the error message above and try creating manually in Azure Portal." -ForegroundColor Yellow
+            exit 1
+        }
+    }
 } else {
     Write-Host "✓ Function App already exists: $FunctionAppName" -ForegroundColor Green
 }
 
 # Set Application Settings
 Write-Host "`nStep 8: Configuring environment variables..." -ForegroundColor Yellow
-$appSettings = @{
-    "MongoDBConnectionString" = $config.mongodb_connection_string
-    "COSMOS_DATABASE" = $config.cosmos_database
-    "COSMOS_COLLECTION" = $config.cosmos_collection
-    "ALARM_FIELD" = $config.alarm_field
-    "PHONE_NUMBER_TO_CALL" = $config.phone_number_to_call
-    "COMMUNICATION_SERVICE_CONNECTION_STRING" = $config.communication_service_connection_string
-    "COMMUNICATION_SERVICE_PHONE_NUMBER" = $config.communication_service_phone_number
-    "CALLBACK_URL" = if ($config.callback_url) { $config.callback_url } else { "https://$FunctionAppName.azurewebsites.net/api/callbacks" }
-    "FUNCTIONS_WORKER_RUNTIME" = "python"
-    "FUNCTIONS_EXTENSION_VERSION" = "~4"
-    "WEBSITE_RUN_FROM_PACKAGE" = "1"
+if ($functionApp) {
+    $appSettings = @{
+        "MongoDBConnectionString" = $config.mongodb_connection_string
+        "COSMOS_DATABASE" = $config.cosmos_database
+        "COSMOS_COLLECTION" = $config.cosmos_collection
+        "ALARM_FIELD" = $config.alarm_field
+        "PHONE_NUMBER_TO_CALL" = $config.phone_number_to_call
+        "COMMUNICATION_SERVICE_CONNECTION_STRING" = $config.communication_service_connection_string
+        "COMMUNICATION_SERVICE_PHONE_NUMBER" = $config.communication_service_phone_number
+        "CALLBACK_URL" = if ($config.callback_url) { $config.callback_url } else { "https://$FunctionAppName.azurewebsites.net/api/callbacks" }
+        "FUNCTIONS_WORKER_RUNTIME" = "python"
+        "FUNCTIONS_EXTENSION_VERSION" = "~4"
+        "WEBSITE_RUN_FROM_PACKAGE" = "1"
+    }
+
+    try {
+        Update-AzFunctionAppSetting -ResourceGroupName $ResourceGroupName `
+            -Name $FunctionAppName `
+            -AppSetting $appSettings
+        Write-Host "✓ Environment variables configured" -ForegroundColor Green
+    } catch {
+        Write-Host "✗ Error setting environment variables: $_" -ForegroundColor Red
+        Write-Host "  You can set them manually in Azure Portal:" -ForegroundColor Yellow
+        Write-Host "  Portal -> Function App -> Configuration -> Application settings" -ForegroundColor Cyan
+    }
+} else {
+    Write-Host "✗ Function App not found. Cannot set environment variables." -ForegroundColor Red
 }
-
-Update-AzFunctionAppSetting -ResourceGroupName $ResourceGroupName `
-    -Name $FunctionAppName `
-    -AppSetting $appSettings
-
-Write-Host "✓ Environment variables configured" -ForegroundColor Green
 
 # Summary
 Write-Host "`n========================================" -ForegroundColor Green

@@ -1,5 +1,6 @@
 azure-functions
-azure-functions-worker
 pymongo==3.12.3
-azure-communication-callautomation>=1.0.0
+azure-communication-callautomation==1.2.0
+grpcio==1.62.0
+grpcio-status==1.62.0
 
