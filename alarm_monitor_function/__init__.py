@@ -162,7 +162,22 @@ def make_phone_call(message="Hi Operator, this is the Bawat Container. There is 
                     
                     # Get the call connection to play media
                     call_connection_obj = call_automation_client.get_call_connection(call_connection_id)
-                    call_media = call_connection_obj.get_call_media()
+                    
+                    # Try different API approaches for version 1.2.0
+                    try:
+                        # Method 1: Try call_media as property
+                        call_media = call_connection_obj.call_media
+                    except AttributeError:
+                        try:
+                            # Method 2: Try get_call_media as method
+                            call_media = call_connection_obj.get_call_media()
+                        except AttributeError:
+                            # Method 3: Use CallMediaClient directly
+                            from azure.communication.callautomation import CallMediaClient
+                            call_media = CallMediaClient.from_connection_string(
+                                COMMUNICATION_SERVICE_CONNECTION_STRING,
+                                call_connection_id
+                            )
                     
                     # Create file source for audio playback
                     file_source = FileSource(url=AUDIO_FILE_URL)
