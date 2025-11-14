@@ -160,31 +160,33 @@ def make_phone_call(message="Hi Operator, this is the Bawat Container. There is 
                     # Wait a moment for the call to be established
                     time.sleep(3)  # Wait 3 seconds for call to connect and be answered
                     
-                    # Get the call connection to play media
+                    # Get the call connection
                     call_connection_obj = call_automation_client.get_call_connection(call_connection_id)
-                    
-                    # Try different API approaches for version 1.2.0
-                    try:
-                        # Method 1: Try call_media as property
-                        call_media = call_connection_obj.call_media
-                    except AttributeError:
-                        try:
-                            # Method 2: Try get_call_media as method
-                            call_media = call_connection_obj.get_call_media()
-                        except AttributeError:
-                            # Method 3: Use CallMediaClient directly
-                            from azure.communication.callautomation import CallMediaClient
-                            call_media = CallMediaClient.from_connection_string(
-                                COMMUNICATION_SERVICE_CONNECTION_STRING,
-                                call_connection_id
-                            )
                     
                     # Create file source for audio playback
                     file_source = FileSource(url=AUDIO_FILE_URL)
                     
-                    # Play the audio file to all participants
-                    call_media.play_to_all(file_source)
-                    logging.info(f"Audio playback started from: {AUDIO_FILE_URL}")
+                    # Try different API approaches for version 1.2.0
+                    try:
+                        # Method 1: Try play_to_all directly on call_connection
+                        call_connection_obj.play_to_all(file_source)
+                        logging.info(f"Audio playback started (method 1) from: {AUDIO_FILE_URL}")
+                    except AttributeError:
+                        try:
+                            # Method 2: Try using call_automation_client.play() method
+                            call_automation_client.play_media(
+                                call_connection_id=call_connection_id,
+                                play_sources=[file_source]
+                            )
+                            logging.info(f"Audio playback started (method 2) from: {AUDIO_FILE_URL}")
+                        except Exception as e2:
+                            # Method 3: Try accessing internal _call_media attribute
+                            try:
+                                call_media = call_connection_obj._call_media
+                                call_media.play_to_all(file_source)
+                                logging.info(f"Audio playback started (method 3) from: {AUDIO_FILE_URL}")
+                            except Exception as e3:
+                                raise Exception(f"All methods failed. Method 2 error: {e2}, Method 3 error: {e3}")
                 except Exception as play_error:
                     logging.warning(f"Could not play audio file: {play_error}")
                     logging.error(f"Play error details: {type(play_error).__name__}: {str(play_error)}")
