@@ -148,6 +148,12 @@ def make_phone_call(message="Hi Operator, this is the Bawat Container. There is 
             call_connection_id = call_connection.call_connection_id
             logging.info(f"Call initiated: {call_connection_id}")
             
+            # Debug logging
+            logging.info(f"Audio file URL configured: {bool(AUDIO_FILE_URL)}")
+            logging.info(f"Audio playback available: {AUDIO_PLAYBACK_AVAILABLE}")
+            if AUDIO_FILE_URL:
+                logging.info(f"Audio file URL value: {AUDIO_FILE_URL[:50]}...")  # Log first 50 chars
+            
             # Play audio file if URL is provided
             if AUDIO_FILE_URL and AUDIO_PLAYBACK_AVAILABLE:
                 try:
