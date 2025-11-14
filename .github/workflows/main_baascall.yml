@@ -15,67 +15,16 @@ env:
   PYTHON_VERSION: '3.11' # set this to the python version to use (supports 3.6, 3.7, 3.8)
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     permissions:
-      contents: read #This is required for actions/checkout
+      contents: read
+      id-token: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Python version
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install dependencies to .python_packages
-        run: |
-          mkdir -p .python_packages/lib/site-packages
-          pip install -r requirements.txt --target .python_packages/lib/site-packages
-
-      # Optional: Add step to run tests here
-
-      - name: Verify packages installed
-        run: |
-          ls -la .python_packages/lib/site-packages/ | head -20
-          echo "Checking for pymongo..."
-          ls .python_packages/lib/site-packages/ | grep pymongo || echo "WARNING: pymongo not found!"
-
-      - name: Zip artifact for deployment
-        run: |
-          # Include all files including hidden directories like .python_packages
-          zip -r release.zip . -x "*.git/*" ".git/*" ".github/workflows/*" "*.md" "local_data.json" ".alarm_state.json"
-          
-      - name: Verify zip contains packages
-        run: |
-          echo "Checking zip contents..."
-          unzip -l release.zip | grep ".python_packages" | head -5 || echo "WARNING: .python_packages not in zip!"
-
-      - name: Upload artifact for deployment job
-        uses: actions/upload-artifact@v4
-        with:
-          name: python-app
-          path: release.zip
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
-    permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
-
-    steps:
-      - name: Download artifact from build job
-        uses: actions/download-artifact@v4
-        with:
-          name: python-app
-
-      - name: Unzip artifact for deployment
-        run: |
-          unzip release.zip
-          rm release.zip
-        
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -90,4 +39,3 @@ jobs:
           app-name: 'BaasCall'
           slot-name: 'Production'
           package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
-          
