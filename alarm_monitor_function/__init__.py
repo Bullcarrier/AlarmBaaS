@@ -163,6 +163,10 @@ def make_phone_call(message="Hi Operator, this is the Bawat Container. There is 
                     # Get the call connection
                     call_connection_obj = call_automation_client.get_call_connection(call_connection_id)
                     
+                    # Debug: Log available methods/attributes
+                    available_methods = [m for m in dir(call_connection_obj) if not m.startswith('_')]
+                    logging.info(f"Available methods on CallConnectionClient: {', '.join(available_methods[:10])}...")
+                    
                     # Create file source for audio playback
                     file_source = FileSource(url=AUDIO_FILE_URL)
                     
