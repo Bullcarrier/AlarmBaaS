@@ -171,44 +171,18 @@ def make_phone_call(message="Hi Operator, this is the Bawat Container. There is 
                     # Create file source for audio playback
                     file_source = FileSource(url=AUDIO_FILE_URL)
                     
-                    # Try using serverCallId with direct REST API call as fallback
+                    # Use the correct method names from the available methods list
                     try:
-                        # Method 1: Try using the call connection's play method (if it exists)
-                        if hasattr(call_connection_obj, 'play'):
-                            call_connection_obj.play(play_sources=[file_source])
-                            logging.info(f"Audio playback started (play method) from: {AUDIO_FILE_URL}")
-                        elif hasattr(call_connection_obj, 'play_to_all'):
-                            call_connection_obj.play_to_all(file_source)
-                            logging.info(f"Audio playback started (play_to_all method) from: {AUDIO_FILE_URL}")
+                        # Method 1: Try play_media_to_all (plays to all participants)
+                        if hasattr(call_connection_obj, 'play_media_to_all'):
+                            call_connection_obj.play_media_to_all(file_source)
+                            logging.info(f"Audio playback started (play_media_to_all) from: {AUDIO_FILE_URL}")
+                        # Method 2: Try play_media (may need additional parameters)
+                        elif hasattr(call_connection_obj, 'play_media'):
+                            call_connection_obj.play_media(play_sources=[file_source])
+                            logging.info(f"Audio playback started (play_media) from: {AUDIO_FILE_URL}")
                         else:
-                            # Method 2: Use REST API directly
-                            import requests
-                            from azure.core.credentials import AzureKeyCredential
-                            from azure.communication.callautomation._shared.auth_policy_utils import get_authentication_policy
-                            
-                            # Extract endpoint and key from connection string
-                            endpoint = COMMUNICATION_SERVICE_CONNECTION_STRING.split('endpoint=')[1].split(';')[0]
-                            access_key = COMMUNICATION_SERVICE_CONNECTION_STRING.split('accesskey=')[1].split(';')[0]
-                            
-                            # Make REST API call to play media
-                            play_url = f"{endpoint}/calling/callConnections/{call_connection_id}/play"
-                            headers = {
-                                'Content-Type': 'application/json',
-                                'x-ms-host': endpoint.replace('https://', '').split('/')[0]
-                            }
-                            
-                            play_payload = {
-                                "playSources": [{
-                                    "file": {
-                                        "uri": AUDIO_FILE_URL
-                                    }
-                                }],
-                                "playTo": ["all"]
-                            }
-                            
-                            # This requires proper authentication - let's log what we tried
-                            logging.warning("Direct REST API approach requires additional setup")
-                            raise Exception("SDK methods not available, REST API requires auth setup")
+                            raise Exception("Neither play_media_to_all nor play_media methods found")
                             
                     except Exception as play_error:
                         logging.warning(f"Could not play audio file: {play_error}")
