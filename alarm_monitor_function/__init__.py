@@ -137,7 +137,7 @@ def make_phone_call(message="Alarm triggered: Test2OPCUA:CommonAlarm is 1"):
         return False
 
 
-def monitor_timer_trigger(timer: func.TimerRequest) -> None:
+def main(timer: func.TimerRequest) -> None:
     """
     Timer trigger function that runs every minute to check for alarms
     Configure in function.json with schedule: "0 * * * * *" (every minute)
