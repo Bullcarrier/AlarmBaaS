@@ -146,7 +146,8 @@ def make_phone_call(message="Hi Operator, this is the Bawat Container. There is 
             )
             
             call_connection_id = call_connection.call_connection_id
-            logging.info(f"Call initiated: {call_connection_id}")
+            server_call_id = getattr(call_connection, 'server_call_id', None)
+            logging.info(f"Call initiated: {call_connection_id}, ServerCallId: {server_call_id}")
             
             # Debug logging
             logging.info(f"Audio file URL configured: {bool(AUDIO_FILE_URL)}")
@@ -165,32 +166,56 @@ def make_phone_call(message="Hi Operator, this is the Bawat Container. There is 
                     
                     # Debug: Log available methods/attributes
                     available_methods = [m for m in dir(call_connection_obj) if not m.startswith('_')]
-                    logging.info(f"Available methods on CallConnectionClient: {', '.join(available_methods[:10])}...")
+                    logging.info(f"Available methods: {', '.join(available_methods)}")
                     
                     # Create file source for audio playback
                     file_source = FileSource(url=AUDIO_FILE_URL)
                     
-                    # Try different API approaches for version 1.2.0
+                    # Try using serverCallId with direct REST API call as fallback
                     try:
-                        # Method 1: Try play_to_all directly on call_connection
-                        call_connection_obj.play_to_all(file_source)
-                        logging.info(f"Audio playback started (method 1) from: {AUDIO_FILE_URL}")
-                    except AttributeError:
-                        try:
-                            # Method 2: Try using call_automation_client.play() method
-                            call_automation_client.play_media(
-                                call_connection_id=call_connection_id,
-                                play_sources=[file_source]
-                            )
-                            logging.info(f"Audio playback started (method 2) from: {AUDIO_FILE_URL}")
-                        except Exception as e2:
-                            # Method 3: Try accessing internal _call_media attribute
-                            try:
-                                call_media = call_connection_obj._call_media
-                                call_media.play_to_all(file_source)
-                                logging.info(f"Audio playback started (method 3) from: {AUDIO_FILE_URL}")
-                            except Exception as e3:
-                                raise Exception(f"All methods failed. Method 2 error: {e2}, Method 3 error: {e3}")
+                        # Method 1: Try using the call connection's play method (if it exists)
+                        if hasattr(call_connection_obj, 'play'):
+                            call_connection_obj.play(play_sources=[file_source])
+                            logging.info(f"Audio playback started (play method) from: {AUDIO_FILE_URL}")
+                        elif hasattr(call_connection_obj, 'play_to_all'):
+                            call_connection_obj.play_to_all(file_source)
+                            logging.info(f"Audio playback started (play_to_all method) from: {AUDIO_FILE_URL}")
+                        else:
+                            # Method 2: Use REST API directly
+                            import requests
+                            from azure.core.credentials import AzureKeyCredential
+                            from azure.communication.callautomation._shared.auth_policy_utils import get_authentication_policy
+                            
+                            # Extract endpoint and key from connection string
+                            endpoint = COMMUNICATION_SERVICE_CONNECTION_STRING.split('endpoint=')[1].split(';')[0]
+                            access_key = COMMUNICATION_SERVICE_CONNECTION_STRING.split('accesskey=')[1].split(';')[0]
+                            
+                            # Make REST API call to play media
+                            play_url = f"{endpoint}/calling/callConnections/{call_connection_id}/play"
+                            headers = {
+                                'Content-Type': 'application/json',
+                                'x-ms-host': endpoint.replace('https://', '').split('/')[0]
+                            }
+                            
+                            play_payload = {
+                                "playSources": [{
+                                    "file": {
+                                        "uri": AUDIO_FILE_URL
+                                    }
+                                }],
+                                "playTo": ["all"]
+                            }
+                            
+                            # This requires proper authentication - let's log what we tried
+                            logging.warning("Direct REST API approach requires additional setup")
+                            raise Exception("SDK methods not available, REST API requires auth setup")
+                            
+                    except Exception as play_error:
+                        logging.warning(f"Could not play audio file: {play_error}")
+                        logging.error(f"Play error details: {type(play_error).__name__}: {str(play_error)}")
+                        import traceback
+                        logging.error(traceback.format_exc())
+                        logging.info("Call was created but audio playback failed - may need callback-based approach")
                 except Exception as play_error:
                     logging.warning(f"Could not play audio file: {play_error}")
                     logging.error(f"Play error details: {type(play_error).__name__}: {str(play_error)}")
