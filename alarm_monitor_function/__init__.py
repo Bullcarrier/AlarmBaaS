@@ -56,6 +56,8 @@ def check_alarm_in_cosmosdb():
             logging.error("MongoDBConnectionString not configured")
             return None
         
+        logging.info(f"Connecting to database: {COSMOS_DATABASE}, collection: {COSMOS_COLLECTION}")
+        
         # Connect to CosmosDB
         client = MongoClient(MONGODB_CONNECTION_STRING)
         db = client[COSMOS_DATABASE]
@@ -67,7 +69,16 @@ def check_alarm_in_cosmosdb():
         )
         
         if not latest_doc:
-            logging.info("No documents found in collection")
+            logging.info(f"No documents found in collection '{COSMOS_COLLECTION}' in database '{COSMOS_DATABASE}'")
+            # Try to list available databases and collections for debugging
+            try:
+                db_list = client.list_database_names()
+                logging.info(f"Available databases: {db_list}")
+                if COSMOS_DATABASE in db_list:
+                    coll_list = db.list_collection_names()
+                    logging.info(f"Available collections in {COSMOS_DATABASE}: {coll_list}")
+            except Exception as debug_e:
+                logging.warning(f"Could not list databases/collections for debugging: {debug_e}")
             return None
         
         # Check for alarm field
