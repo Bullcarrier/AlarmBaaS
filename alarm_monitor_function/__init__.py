@@ -5,10 +5,15 @@ Azure Function App to monitor CosmosDB for Test2OPCUA:CommonAlarm and make phone
 import logging
 import os
 import json
+import time
 from datetime import datetime, timedelta
 import azure.functions as func
 from pymongo import MongoClient
 from azure.communication.callautomation import CallAutomationClient, PhoneNumberIdentifier
+from azure.communication.callautomation.models import (
+    PlaySource,
+    TextSource
+)
 
 # Configuration from environment variables
 MONGODB_CONNECTION_STRING = os.environ.get("MongoDBConnectionString")
@@ -98,8 +103,8 @@ def check_alarm_in_cosmosdb():
         return None
 
 
-def make_phone_call(message="Alarm triggered: Test2OPCUA:CommonAlarm is 1"):
-    """Make phone call using Azure Communication Services"""
+def make_phone_call(message="Hi Operator, this is the Bawat Container. There is a Safety Alarm. Please attend."):
+    """Make phone call using Azure Communication Services and play message when answered"""
     try:
         if not COMMUNICATION_SERVICE_CONNECTION_STRING:
             logging.error("Communication Service connection string not configured")
@@ -128,13 +133,37 @@ def make_phone_call(message="Alarm triggered: Test2OPCUA:CommonAlarm is 1"):
             
             callback_url = CALLBACK_URL or f"https://{os.environ.get('WEBSITE_HOSTNAME', 'localhost')}/api/callbacks"
             
+            # Create the call
             call_connection = call_automation_client.create_call(
                 target_participant=target_phone,
                 callback_url=callback_url,
                 source_caller_id_number=source_phone
             )
             
-            logging.info(f"Call initiated: {call_connection.call_connection_id}")
+            call_connection_id = call_connection.call_connection_id
+            logging.info(f"Call initiated: {call_connection_id}")
+            
+            # Wait a moment for the call to be established, then play the message
+            # Note: In production, you should use callbacks to detect when call is answered
+            # For now, we'll play the message after a short delay
+            time.sleep(2)  # Wait 2 seconds for call to connect
+            
+            # Play the message using text-to-speech
+            try:
+                # Create text source for TTS
+                text_source = TextSource(text=message, voice_name="en-US-JennyNeural")
+                play_source = PlaySource(text_source=text_source)
+                
+                # Play the message
+                call_automation_client.play_media(
+                    call_connection_id=call_connection_id,
+                    play_sources=[play_source]
+                )
+                logging.info(f"Message playback started: {message}")
+            except Exception as play_error:
+                logging.warning(f"Could not play message automatically: {play_error}")
+                logging.info("Call was created but message playback may need callback handling")
+            
             return True
         except Exception as e:
             logging.error(f"Failed to create call: {e}")
@@ -145,6 +174,8 @@ def make_phone_call(message="Alarm triggered: Test2OPCUA:CommonAlarm is 1"):
         
     except Exception as e:
         logging.error(f"Error making phone call: {e}")
+        import traceback
+        logging.error(traceback.format_exc())
         return False
 
 
@@ -186,8 +217,8 @@ def main(timer: func.TimerRequest) -> None:
                 logging.warning(f"⚠️  ALARM TRIGGERED! {ALARM_FIELD} = 1")
                 logging.info(f"Document ID: {doc_id}")
                 
-                # Make phone call
-                alarm_message = f"ALARM: {ALARM_FIELD} is active. Check system immediately."
+                # Make phone call with custom message
+                alarm_message = "Hi Operator, this is the Bawat Container. There is a Safety Alarm. Please attend."
                 make_phone_call(alarm_message)
                 
                 last_alarm_state[doc_id] = 1
