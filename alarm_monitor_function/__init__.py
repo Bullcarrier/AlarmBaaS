@@ -10,10 +10,14 @@ from datetime import datetime, timedelta
 import azure.functions as func
 from pymongo import MongoClient
 from azure.communication.callautomation import CallAutomationClient, PhoneNumberIdentifier
-from azure.communication.callautomation.models import (
-    PlaySource,
-    TextSource
-)
+
+# Try to import TTS classes (may not be available in all SDK versions)
+try:
+    from azure.communication.callautomation.models import PlaySource, TextSource
+    TTS_AVAILABLE = True
+except ImportError:
+    TTS_AVAILABLE = False
+    # TTS classes not available - will log warning when needed
 
 # Configuration from environment variables
 MONGODB_CONNECTION_STRING = os.environ.get("MongoDBConnectionString")
@@ -143,26 +147,27 @@ def make_phone_call(message="Hi Operator, this is the Bawat Container. There is 
             call_connection_id = call_connection.call_connection_id
             logging.info(f"Call initiated: {call_connection_id}")
             
-            # Wait a moment for the call to be established, then play the message
-            # Note: In production, you should use callbacks to detect when call is answered
-            # For now, we'll play the message after a short delay
-            time.sleep(2)  # Wait 2 seconds for call to connect
-            
-            # Play the message using text-to-speech
-            try:
-                # Create text source for TTS
-                text_source = TextSource(text=message, voice_name="en-US-JennyNeural")
-                play_source = PlaySource(text_source=text_source)
-                
-                # Play the message
-                call_automation_client.play_media(
-                    call_connection_id=call_connection_id,
-                    play_sources=[play_source]
-                )
-                logging.info(f"Message playback started: {message}")
-            except Exception as play_error:
-                logging.warning(f"Could not play message automatically: {play_error}")
-                logging.info("Call was created but message playback may need callback handling")
+            # Play the message using text-to-speech if available
+            if TTS_AVAILABLE:
+                try:
+                    # Wait a moment for the call to be established
+                    time.sleep(2)  # Wait 2 seconds for call to connect
+                    
+                    # Create text source for TTS
+                    text_source = TextSource(text=message, voice_name="en-US-JennyNeural")
+                    play_source = PlaySource(text_source=text_source)
+                    
+                    # Play the message
+                    call_automation_client.play_media(
+                        call_connection_id=call_connection_id,
+                        play_sources=[play_source]
+                    )
+                    logging.info(f"Message playback started: {message}")
+                except Exception as play_error:
+                    logging.warning(f"Could not play message automatically: {play_error}")
+                    logging.info("Call was created but message playback failed - check SDK version")
+            else:
+                logging.info("Text-to-speech not available - call created without message playback")
             
             return True
         except Exception as e:
