@@ -36,8 +36,21 @@ jobs:
 
       # Optional: Add step to run tests here
 
+      - name: Verify packages installed
+        run: |
+          ls -la .python_packages/lib/site-packages/ | head -20
+          echo "Checking for pymongo..."
+          ls .python_packages/lib/site-packages/ | grep pymongo || echo "WARNING: pymongo not found!"
+
       - name: Zip artifact for deployment
-        run: zip release.zip ./* -r
+        run: |
+          # Include all files including hidden directories like .python_packages
+          zip -r release.zip . -x "*.git/*" ".git/*" ".github/workflows/*" "*.md" "local_data.json" ".alarm_state.json"
+          
+      - name: Verify zip contains packages
+        run: |
+          echo "Checking zip contents..."
+          unzip -l release.zip | grep ".python_packages" | head -5 || echo "WARNING: .python_packages not in zip!"
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
