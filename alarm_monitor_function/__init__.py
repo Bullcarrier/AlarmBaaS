@@ -11,13 +11,13 @@ import azure.functions as func
 from pymongo import MongoClient
 from azure.communication.callautomation import CallAutomationClient, PhoneNumberIdentifier
 
-# Try to import TTS classes (may not be available in all SDK versions)
+# Try to import media source classes for playing audio
 try:
-    from azure.communication.callautomation import TextSource
-    TTS_AVAILABLE = True
+    from azure.communication.callautomation import FileSource
+    AUDIO_PLAYBACK_AVAILABLE = True
 except ImportError:
-    TTS_AVAILABLE = False
-    # TTS classes not available - will log warning when needed
+    AUDIO_PLAYBACK_AVAILABLE = False
+    # Audio playback classes not available
 
 # Configuration from environment variables
 MONGODB_CONNECTION_STRING = os.environ.get("MongoDBConnectionString")
@@ -28,6 +28,7 @@ PHONE_NUMBER_TO_CALL = os.environ.get("PHONE_NUMBER_TO_CALL")
 COMMUNICATION_SERVICE_CONNECTION_STRING = os.environ.get("COMMUNICATION_SERVICE_CONNECTION_STRING")
 COMMUNICATION_SERVICE_PHONE_NUMBER = os.environ.get("COMMUNICATION_SERVICE_PHONE_NUMBER")
 CALLBACK_URL = os.environ.get("CALLBACK_URL", "")
+AUDIO_FILE_URL = os.environ.get("AUDIO_FILE_URL", "")  # URL to pre-recorded WAV file
 
 # Track last alarm state (in production, use Azure Table Storage or CosmosDB)
 last_alarm_state = {}
@@ -147,8 +148,8 @@ def make_phone_call(message="Hi Operator, this is the Bawat Container. There is 
             call_connection_id = call_connection.call_connection_id
             logging.info(f"Call initiated: {call_connection_id}")
             
-            # Play the message using text-to-speech if available
-            if TTS_AVAILABLE:
+            # Play audio file if URL is provided
+            if AUDIO_FILE_URL and AUDIO_PLAYBACK_AVAILABLE:
                 try:
                     # Wait a moment for the call to be established
                     time.sleep(3)  # Wait 3 seconds for call to connect and be answered
@@ -157,23 +158,22 @@ def make_phone_call(message="Hi Operator, this is the Bawat Container. There is 
                     call_connection_obj = call_automation_client.get_call_connection(call_connection_id)
                     call_media = call_connection_obj.get_call_media()
                     
-                    # Create text source for TTS
-                    text_source = TextSource(
-                        text=message,
-                        voice_name="en-US-JennyNeural"
-                    )
+                    # Create file source for audio playback
+                    file_source = FileSource(url=AUDIO_FILE_URL)
                     
-                    # Play the message to all participants
-                    call_media.play_to_all(text_source)
-                    logging.info(f"Message playback started: {message}")
+                    # Play the audio file to all participants
+                    call_media.play_to_all(file_source)
+                    logging.info(f"Audio playback started from: {AUDIO_FILE_URL}")
                 except Exception as play_error:
-                    logging.warning(f"Could not play message automatically: {play_error}")
+                    logging.warning(f"Could not play audio file: {play_error}")
                     logging.error(f"Play error details: {type(play_error).__name__}: {str(play_error)}")
                     import traceback
                     logging.error(traceback.format_exc())
-                    logging.info("Call was created but message playback failed - may need to link Speech service")
+                    logging.info("Call was created but audio playback failed")
+            elif AUDIO_FILE_URL:
+                logging.warning("Audio file URL configured but FileSource class not available")
             else:
-                logging.info("Text-to-speech not available - call created without message playback")
+                logging.info("No audio file URL configured - call created without audio playback")
             
             return True
         except Exception as e:
