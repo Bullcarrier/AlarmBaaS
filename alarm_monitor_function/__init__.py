@@ -143,40 +143,55 @@ def monitor_timer_trigger(timer: func.TimerRequest) -> None:
     Configure in function.json with schedule: "0 * * * * *" (every minute)
     Note: Time comparisons use -1 hour adjustment for DB timezone alignment
     """
-    # Adjust time -1 hour for DB comparison
-    current_time_adjusted = datetime.now() - timedelta(hours=1)
-    logging.info(f"Timer trigger executed at {datetime.now()} (DB comparison time: {current_time_adjusted})")
-    
-    # Check for alarm
-    result = check_alarm_in_cosmosdb()
-    
-    if result is None:
-        logging.info("No data found or error checking CosmosDB")
-        return
-    
-    alarm_value, doc = result
-    doc_id = str(doc.get('_id', 'unknown'))
-    
-    # Check if alarm is triggered
-    if alarm_value == 1:
-        # Only make call if alarm state changed (avoid duplicate calls)
-        if last_alarm_state.get(doc_id) != 1:
-            logging.warning(f"⚠️  ALARM TRIGGERED! {ALARM_FIELD} = 1")
-            logging.info(f"Document ID: {doc_id}")
-            
-            # Make phone call
-            alarm_message = f"ALARM: {ALARM_FIELD} is active. Check system immediately."
-            make_phone_call(alarm_message)
-            
-            last_alarm_state[doc_id] = 1
+    try:
+        # Adjust time -1 hour for DB comparison
+        current_time_adjusted = datetime.now() - timedelta(hours=1)
+        logging.info(f"Timer trigger executed at {datetime.now()} (DB comparison time: {current_time_adjusted})")
+        
+        # Check for alarm
+        result = check_alarm_in_cosmosdb()
+        
+        if result is None:
+            logging.info("No data found or error checking CosmosDB")
+            return
+        
+        alarm_value, doc = result
+        doc_id = str(doc.get('_id', 'unknown'))
+        
+        # Parse and format timestamp for logging
+        timestamp_str = "N/A"
+        if 'timestamp' in doc:
+            timestamp = parse_timestamp(doc['timestamp'])
+            if timestamp:
+                timestamp_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Log timestamp and alarm status (visible in log stream)
+        logging.info(f"Timestamp last occurrence: {timestamp_str}. Alarm signal: {alarm_value}")
+        
+        # Check if alarm is triggered
+        if alarm_value == 1:
+            # Only make call if alarm state changed (avoid duplicate calls)
+            if last_alarm_state.get(doc_id) != 1:
+                logging.warning(f"⚠️  ALARM TRIGGERED! {ALARM_FIELD} = 1")
+                logging.info(f"Document ID: {doc_id}")
+                
+                # Make phone call
+                alarm_message = f"ALARM: {ALARM_FIELD} is active. Check system immediately."
+                make_phone_call(alarm_message)
+                
+                last_alarm_state[doc_id] = 1
+            else:
+                logging.info("Alarm still active (already notified)")
         else:
-            logging.info("Alarm still active (already notified)")
-    else:
-        if last_alarm_state.get(doc_id) == 1:
-            logging.info(f"✅ Alarm cleared: {ALARM_FIELD} = {alarm_value}")
-            last_alarm_state[doc_id] = alarm_value
-        else:
-            logging.info(f"Status OK: {ALARM_FIELD} = {alarm_value}")
+            if last_alarm_state.get(doc_id) == 1:
+                logging.info(f"✅ Alarm cleared: {ALARM_FIELD} = {alarm_value}")
+                last_alarm_state[doc_id] = alarm_value
+            else:
+                logging.info(f"Status OK: {ALARM_FIELD} = {alarm_value}")
+    except Exception as e:
+        logging.error(f"Error in monitor_timer_trigger: {e}")
+        import traceback
+        logging.error(traceback.format_exc())
 
 
 def cosmosdb_trigger(documents: func.DocumentList) -> None:
