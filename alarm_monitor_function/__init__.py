@@ -158,38 +158,59 @@ def make_phone_call(message="Hi Operator, this is the Bawat Container. There is 
             # Play audio file if URL is provided
             if AUDIO_FILE_URL and AUDIO_PLAYBACK_AVAILABLE:
                 try:
-                    # Wait a moment for the call to be established
-                    time.sleep(3)  # Wait 3 seconds for call to connect and be answered
-                    
                     # Get the call connection
                     call_connection_obj = call_automation_client.get_call_connection(call_connection_id)
-                    
-                    # Debug: Log available methods/attributes
-                    available_methods = [m for m in dir(call_connection_obj) if not m.startswith('_')]
-                    logging.info(f"Available methods: {', '.join(available_methods)}")
                     
                     # Create file source for audio playback
                     file_source = FileSource(url=AUDIO_FILE_URL)
                     
-                    # Use the correct method names from the available methods list
-                    try:
-                        # Method 1: Try play_media_to_all (plays to all participants)
-                        if hasattr(call_connection_obj, 'play_media_to_all'):
-                            call_connection_obj.play_media_to_all(file_source)
-                            logging.info(f"Audio playback started (play_media_to_all) from: {AUDIO_FILE_URL}")
-                        # Method 2: Try play_media (may need additional parameters)
-                        elif hasattr(call_connection_obj, 'play_media'):
-                            call_connection_obj.play_media(play_sources=[file_source])
-                            logging.info(f"Audio playback started (play_media) from: {AUDIO_FILE_URL}")
-                        else:
-                            raise Exception("Neither play_media_to_all nor play_media methods found")
+                    # Wait for call to be established (answered) with retry logic
+                    max_retries = 10  # Try for up to 30 seconds (10 retries * 3 seconds)
+                    retry_count = 0
+                    playback_success = False
+                    
+                    while retry_count < max_retries and not playback_success:
+                        try:
+                            # Wait before trying
+                            if retry_count > 0:
+                                time.sleep(3)  # Wait 3 seconds between retries
+                            else:
+                                time.sleep(5)  # Wait 5 seconds on first attempt
                             
-                    except Exception as play_error:
-                        logging.warning(f"Could not play audio file: {play_error}")
-                        logging.error(f"Play error details: {type(play_error).__name__}: {str(play_error)}")
-                        import traceback
-                        logging.error(traceback.format_exc())
-                        logging.info("Call was created but audio playback failed - may need callback-based approach")
+                            # Try to play audio
+                            if hasattr(call_connection_obj, 'play_media_to_all'):
+                                call_connection_obj.play_media_to_all(file_source)
+                                logging.info(f"Audio playback started (play_media_to_all) from: {AUDIO_FILE_URL}")
+                                playback_success = True
+                            elif hasattr(call_connection_obj, 'play_media'):
+                                call_connection_obj.play_media(play_sources=[file_source])
+                                logging.info(f"Audio playback started (play_media) from: {AUDIO_FILE_URL}")
+                                playback_success = True
+                            else:
+                                raise Exception("Neither play_media_to_all nor play_media methods found")
+                                
+                        except Exception as play_error:
+                            error_str = str(play_error)
+                            # Check if it's the "not in Established state" error
+                            if "not in Established state" in error_str or "8501" in error_str:
+                                retry_count += 1
+                                logging.info(f"Call not answered yet, retrying ({retry_count}/{max_retries})...")
+                                if retry_count >= max_retries:
+                                    logging.warning(f"Call not answered after {max_retries} attempts. Audio playback failed.")
+                                    logging.info("Consider using callback-based approach to detect when call is answered")
+                            else:
+                                # Different error, don't retry
+                                raise
+                    
+                    if not playback_success:
+                        logging.warning("Could not play audio - call may not have been answered")
+                            
+                except Exception as play_error:
+                    logging.warning(f"Could not play audio file: {play_error}")
+                    logging.error(f"Play error details: {type(play_error).__name__}: {str(play_error)}")
+                    import traceback
+                    logging.error(traceback.format_exc())
+                    logging.info("Call was created but audio playback failed")
                 except Exception as play_error:
                     logging.warning(f"Could not play audio file: {play_error}")
                     logging.error(f"Play error details: {type(play_error).__name__}: {str(play_error)}")
