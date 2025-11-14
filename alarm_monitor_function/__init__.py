@@ -211,7 +211,6 @@ def make_phone_call(message="Hi Operator, this is the Bawat Container. There is 
                     import traceback
                     logging.error(traceback.format_exc())
                     logging.info("Call was created but audio playback failed")
-                    logging.info("Call was created but audio playback failed")
             elif AUDIO_FILE_URL:
                 logging.warning("Audio file URL configured but FileSource class not available")
             else:
