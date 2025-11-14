@@ -13,7 +13,7 @@ from azure.communication.callautomation import CallAutomationClient, PhoneNumber
 
 # Try to import TTS classes (may not be available in all SDK versions)
 try:
-    from azure.communication.callautomation.models import PlaySource, TextSource
+    from azure.communication.callautomation import TextSource
     TTS_AVAILABLE = True
 except ImportError:
     TTS_AVAILABLE = False
@@ -151,21 +151,27 @@ def make_phone_call(message="Hi Operator, this is the Bawat Container. There is 
             if TTS_AVAILABLE:
                 try:
                     # Wait a moment for the call to be established
-                    time.sleep(2)  # Wait 2 seconds for call to connect
+                    time.sleep(3)  # Wait 3 seconds for call to connect and be answered
+                    
+                    # Get the call connection to play media
+                    call_connection_obj = call_automation_client.get_call_connection(call_connection_id)
+                    call_media = call_connection_obj.get_call_media()
                     
                     # Create text source for TTS
-                    text_source = TextSource(text=message, voice_name="en-US-JennyNeural")
-                    play_source = PlaySource(text_source=text_source)
-                    
-                    # Play the message
-                    call_automation_client.play_media(
-                        call_connection_id=call_connection_id,
-                        play_sources=[play_source]
+                    text_source = TextSource(
+                        text=message,
+                        voice_name="en-US-JennyNeural"
                     )
+                    
+                    # Play the message to all participants
+                    call_media.play_to_all(text_source)
                     logging.info(f"Message playback started: {message}")
                 except Exception as play_error:
                     logging.warning(f"Could not play message automatically: {play_error}")
-                    logging.info("Call was created but message playback failed - check SDK version")
+                    logging.error(f"Play error details: {type(play_error).__name__}: {str(play_error)}")
+                    import traceback
+                    logging.error(traceback.format_exc())
+                    logging.info("Call was created but message playback failed - may need to link Speech service")
             else:
                 logging.info("Text-to-speech not available - call created without message playback")
             
