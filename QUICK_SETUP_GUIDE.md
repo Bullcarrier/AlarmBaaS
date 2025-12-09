@@ -43,7 +43,7 @@ Since you're creating the Function App manually in Azure Portal, follow these st
 | `MongoDBConnectionString` | `mongodb_connection_string` |
 | `COSMOS_DATABASE` | `cosmos_database` (secomeadb) |
 | `COSMOS_COLLECTION` | `cosmos_collection` |
-| `ALARM_FIELD` | `alarm_field` (Test2OPCUA:CommonAlarm) |
+| `ALARM_FIELD` | `alarm_field` (Test2OPCUA:CallOperator) |
 | `PHONE_NUMBER_TO_CALL` | `phone_number_to_call` |
 | `COMMUNICATION_SERVICE_CONNECTION_STRING` | `communication_service_connection_string` |
 | `COMMUNICATION_SERVICE_PHONE_NUMBER` | `communication_service_phone_number` |
@@ -81,7 +81,7 @@ Based on your `local_data.json`:
 - **MongoDBConnectionString**: `mongodb://secomeadb:***@secomeadb.documents.azure.com:10255/?ssl=true&replicaSet=globaldb`
 - **COSMOS_DATABASE**: `secomeadb`
 - **COSMOS_COLLECTION**: `YourCollectionName` (update this to your actual collection name)
-- **ALARM_FIELD**: `Test2OPCUA:CommonAlarm`
+- **ALARM_FIELD**: `Test2OPCUA:CallOperator`
 - **PHONE_NUMBER_TO_CALL**: `+4550304427`
 - **COMMUNICATION_SERVICE_CONNECTION_STRING**: `endpoint=https://alarmcontainer.europe.communication.azure.com/;accesskey=***`
 - **COMMUNICATION_SERVICE_PHONE_NUMBER**: `+4588744478`

@@ -1,5 +1,5 @@
 """
-Azure Function App to monitor CosmosDB for Test2OPCUA:CommonAlarm and make phone calls
+Azure Function App to monitor CosmosDB for Test2OPCUA:CallOperator and make phone calls
 """
 
 import logging
@@ -23,7 +23,7 @@ except ImportError:
 MONGODB_CONNECTION_STRING = os.environ.get("MongoDBConnectionString")
 COSMOS_DATABASE = os.environ.get("COSMOS_DATABASE", "IoTDatabase")
 COSMOS_COLLECTION = os.environ.get("COSMOS_COLLECTION", "iotmessages")
-ALARM_FIELD = os.environ.get("ALARM_FIELD", "Test2OPCUA:CommonAlarm")
+ALARM_FIELD = os.environ.get("ALARM_FIELD", "Test2OPCUA:CallOperator")
 PHONE_NUMBER_TO_CALL = os.environ.get("PHONE_NUMBER_TO_CALL")
 COMMUNICATION_SERVICE_CONNECTION_STRING = os.environ.get("COMMUNICATION_SERVICE_CONNECTION_STRING")
 COMMUNICATION_SERVICE_PHONE_NUMBER = os.environ.get("COMMUNICATION_SERVICE_PHONE_NUMBER")

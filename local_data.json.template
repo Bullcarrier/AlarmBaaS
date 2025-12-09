@@ -3,7 +3,7 @@
   "github_token": "",
   "communication_service_phone_number": "",
   "cosmos_collection": "iotmessages",
-  "alarm_field": "Test2OPCUA:CommonAlarm",
+  "alarm_field": "Test2OPCUA:CallOperator",
   "callback_url": "",
   "mongodb_connection_string": "",
   "phone_number_to_call": "",

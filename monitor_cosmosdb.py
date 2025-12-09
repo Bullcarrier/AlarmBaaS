@@ -28,7 +28,7 @@ MONGODB_CONNECTION_STRING = config.get("mongodb_connection_string")
 COSMOS_DATABASE = config.get("cosmos_database", "secomeadb")
 COSMOS_COLLECTION = config.get("cosmos_collection", "iotmessages")
 
-ALARM_FIELD = config.get("alarm_field", "Test2OPCUA:CommonAlarm")
+ALARM_FIELD = config.get("alarm_field", "Test2OPCUA:CallOperator")
 PHONE_NUMBER_TO_CALL = config.get("phone_number_to_call", "")
 COMMUNICATION_SERVICE_CONNECTION_STRING = config.get("communication_service_connection_string", "")
 COMMUNICATION_SERVICE_PHONE_NUMBER = config.get("communication_service_phone_number", "")
@@ -130,7 +130,7 @@ def clear_screen():
     """Clear terminal screen"""
     os.system('cls' if os.name == 'nt' else 'clear')
 
-def make_phone_call(message="Alarm triggered: Test2OPCUA:CommonAlarm is 1"):
+def make_phone_call(message="Alarm triggered: Test2OPCUA:CallOperator is 1"):
     """Make phone call using Azure Communication Services"""
     if not CALL_AUTOMATION_AVAILABLE:
         print(f"⚠️  Phone call disabled - azure-communication-callautomation not installed")

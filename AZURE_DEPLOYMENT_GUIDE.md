@@ -21,7 +21,7 @@ Update `local_data.json` with your actual values:
   "mongodb_connection_string": "mongodb://...",
   "cosmos_database": "secomeadb",
   "cosmos_collection": "YourCollectionName",
-  "alarm_field": "Test2OPCUA:CommonAlarm",
+  "alarm_field": "Test2OPCUA:CallOperator",
   "callback_url": "https://your-function-app.azurewebsites.net/api/callbacks"
 }
 ```
@@ -107,7 +107,7 @@ If you prefer to use the Azure Portal:
 | `MongoDBConnectionString` | Your CosmosDB connection string |
 | `COSMOS_DATABASE` | `secomeadb` |
 | `COSMOS_COLLECTION` | Your collection name |
-| `ALARM_FIELD` | `Test2OPCUA:CommonAlarm` |
+| `ALARM_FIELD` | `Test2OPCUA:CallOperator` |
 | `PHONE_NUMBER_TO_CALL` | Phone number to call (e.g., +1234567890) |
 | `COMMUNICATION_SERVICE_CONNECTION_STRING` | Azure Communication Services connection string |
 | `COMMUNICATION_SERVICE_PHONE_NUMBER` | Your Communication Services phone number |

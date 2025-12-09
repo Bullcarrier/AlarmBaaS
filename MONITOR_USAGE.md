@@ -38,7 +38,7 @@ The script will:
 ================================================================================
 COSMOSDB MONITOR - Last 24 Hours
 Database: secomeadb | Collection: YourCollectionName
-Alarm Field: Test2OPCUA:CommonAlarm
+Alarm Field: Test2OPCUA:CallOperator
 Last Update: 2025-11-13 15:30:45
 ================================================================================
 
@@ -48,7 +48,7 @@ Last Update: 2025-11-13 15:30:45
 Document #1
 ────────────────────────────────────────────────────────────────────────────────
 Timestamp: 2025-11-13 14:25:30 UTC
-Alarm Status (Test2OPCUA:CommonAlarm): 0 🟢 OK
+Alarm Status (Test2OPCUA:CallOperator): 0 🟢 OK
 
 Other Fields:
   field1: value1

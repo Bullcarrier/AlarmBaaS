@@ -16,7 +16,7 @@ with open(config_path, 'r') as f:
 MONGODB_CONNECTION_STRING = config.get("mongodb_connection_string")
 COSMOS_DATABASE = config.get("cosmos_database", "IoTDatabase")
 COSMOS_COLLECTION = config.get("cosmos_collection", "iotmessages")
-ALARM_FIELD = config.get("alarm_field", "Test2OPCUA:CommonAlarm")
+ALARM_FIELD = config.get("alarm_field", "Test2OPCUA:CallOperator")
 
 print("=" * 80)
 print("Send Alarm Signal to CosmosDB")
@@ -120,7 +120,7 @@ try:
     print(f"  4. Expand: {db_name} (database)")
     print(f"  5. Click on collection: {COSMOS_COLLECTION}")
     print(f"  6. Look for document with ID: {result.inserted_id}")
-    print(f"     Or search for: Test2OPCUA:CommonAlarm = 1")
+    print(f"     Or search for: Test2OPCUA:CallOperator = 1")
     print()
     print(f"Connection details:")
     print(f"  Endpoint: secomeadb.documents.azure.com (or secomeadb.mongo.cosmos.azure.com)")

@@ -44,7 +44,7 @@ All required settings are present:
 1. In the function, go to **Logs** tab
 2. Look for:
    - ✅ "Timer trigger executed at..." - means function is running
-   - ✅ "Status OK: Test2OPCUA:CommonAlarm = 0" - means it's checking CosmosDB
+   - ✅ "Status OK: Test2OPCUA:CallOperator = 0" - means it's checking CosmosDB
    - ⚠️ Any error messages (red text)
 
 ### Step 4: Common Issues to Check
@@ -86,10 +86,10 @@ To test if the alarm detection works:
 
 1. Go to your CosmosDB
 2. Find a document in your collection
-3. Update the `Test2OPCUA:CommonAlarm` field to `1`
+3. Update the `Test2OPCUA:CallOperator` field to `1`
 4. Wait for the next function execution (within 1 minute)
 5. Check the function logs - you should see:
-   - "⚠️ ALARM TRIGGERED! Test2OPCUA:CommonAlarm = 1"
+   - "⚠️ ALARM TRIGGERED! Test2OPCUA:CallOperator = 1"
    - Phone call attempt logs
 
 ## Quick Links
