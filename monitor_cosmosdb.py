@@ -26,7 +26,7 @@ with open(config_path, 'r') as f:
 
 MONGODB_CONNECTION_STRING = config.get("mongodb_connection_string")
 COSMOS_DATABASE = config.get("cosmos_database", "secomeadb")
-COSMOS_COLLECTION = config.get("cosmos_collection", "YourCollectionName")
+COSMOS_COLLECTION = config.get("cosmos_collection", "iotmessages")
 
 ALARM_FIELD = config.get("alarm_field", "Test2OPCUA:CommonAlarm")
 PHONE_NUMBER_TO_CALL = config.get("phone_number_to_call", "")
@@ -71,13 +71,13 @@ for key, value in last_call_time.items():
         except:
             last_call_time[key] = datetime.min
 
-# Check if collection name needs to be updated
+# Check if collection name needs to be updated (legacy check for old default)
 if COSMOS_COLLECTION == "YourCollectionName":
     print("⚠️  WARNING: COSMOS_COLLECTION is set to 'YourCollectionName'")
     print("   Trying to discover collection name...")
     
     # Try to discover the collection by testing common names
-    common_names = ['sensordata', 'sensor_data', 'alarms', 'alarm', 'data', 'telemetry', 
+    common_names = ['iotmessages', 'sensordata', 'sensor_data', 'alarms', 'alarm', 'data', 'telemetry', 
                    'measurements', 'events', 'logs', 'iotdata', 'iot_data', 'secomea']
     
     discovered = None
@@ -117,7 +117,7 @@ if COSMOS_COLLECTION == "YourCollectionName":
         print(f"   Using discovered collection: {COSMOS_COLLECTION}")
     else:
         print("   Could not auto-discover collection name")
-        print("   Please enter collection name now (or press Enter to try 'YourCollectionName'): ", end="", flush=True)
+        print("   Please enter collection name now (or press Enter to try 'iotmessages'): ", end="", flush=True)
         try:
             user_input = input().strip()
             if user_input:

@@ -22,7 +22,7 @@ except ImportError:
 # Configuration from environment variables
 MONGODB_CONNECTION_STRING = os.environ.get("MongoDBConnectionString")
 COSMOS_DATABASE = os.environ.get("COSMOS_DATABASE", "IoTDatabase")
-COSMOS_COLLECTION = os.environ.get("COSMOS_COLLECTION", "YourCollectionName")
+COSMOS_COLLECTION = os.environ.get("COSMOS_COLLECTION", "iotmessages")
 ALARM_FIELD = os.environ.get("ALARM_FIELD", "Test2OPCUA:CommonAlarm")
 PHONE_NUMBER_TO_CALL = os.environ.get("PHONE_NUMBER_TO_CALL")
 COMMUNICATION_SERVICE_CONNECTION_STRING = os.environ.get("COMMUNICATION_SERVICE_CONNECTION_STRING")

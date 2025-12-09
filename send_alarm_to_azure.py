@@ -15,7 +15,7 @@ with open(config_path, 'r') as f:
 
 MONGODB_CONNECTION_STRING = config.get("mongodb_connection_string")
 COSMOS_DATABASE = config.get("cosmos_database", "IoTDatabase")
-COSMOS_COLLECTION = config.get("cosmos_collection", "YourCollectionName")
+COSMOS_COLLECTION = config.get("cosmos_collection", "iotmessages")
 ALARM_FIELD = config.get("alarm_field", "Test2OPCUA:CommonAlarm")
 
 print("=" * 80)
@@ -27,7 +27,7 @@ print(f"Collection: {COSMOS_COLLECTION}")
 print(f"Alarm Field: {ALARM_FIELD}")
 print()
 print("NOTE: In Azure Portal, navigate to:")
-print("  CosmosDB Account 'secomeadb' -> Data Explorer -> Database 'IoTDatabase' -> Collection 'YourCollectionName'")
+print("  CosmosDB Account 'secomeadb' -> Data Explorer -> Database 'IoTDatabase' -> Collection 'iotmessages'")
 print()
 
 try:

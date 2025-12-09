@@ -2,10 +2,10 @@
   "communication_service_connection_string": "",
   "github_token": "",
   "communication_service_phone_number": "",
-  "cosmos_collection": "",
+  "cosmos_collection": "iotmessages",
   "alarm_field": "Test2OPCUA:CommonAlarm",
   "callback_url": "",
   "mongodb_connection_string": "",
   "phone_number_to_call": "",
-  "cosmos_database": "secomeadb"
+  "cosmos_database": "IoTDatabase"
 }
