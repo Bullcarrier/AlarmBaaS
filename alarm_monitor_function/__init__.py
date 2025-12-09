@@ -108,6 +108,52 @@ def check_alarm_in_cosmosdb():
         return None
 
 
+def get_phone_number_from_database():
+    """Get phone number from Operator collection in IoTDatabase"""
+    try:
+        if not MONGODB_CONNECTION_STRING:
+            logging.error("MongoDBConnectionString not configured")
+            return None
+        
+        # Connect to CosmosDB
+        client = MongoClient(MONGODB_CONNECTION_STRING)
+        db = client[COSMOS_DATABASE]
+        operator_collection = db["Operator"]
+        
+        # Get the most recent document from Operator collection
+        latest_doc = operator_collection.find_one(
+            sort=[("_id", -1)]  # Sort by _id descending to get latest
+        )
+        
+        if not latest_doc:
+            logging.error("No documents found in Operator collection")
+            return None
+        
+        # Extract country code and phone number
+        country_code = latest_doc.get("Test2OPCUA:Country", "")
+        phone_number = latest_doc.get("Test2OPCUA:PhoneNumber", "")
+        
+        if not country_code or not phone_number:
+            logging.error(f"Missing phone number data: Country={country_code}, PhoneNumber={phone_number}")
+            return None
+        
+        # Replace "00" with "+" in country code
+        if country_code.startswith("00"):
+            country_code = "+" + country_code[2:]
+        elif not country_code.startswith("+"):
+            country_code = "+" + country_code
+        
+        # Concatenate country code and phone number
+        full_phone_number = country_code + phone_number
+        
+        logging.info(f"Retrieved phone number from Operator collection: {full_phone_number}")
+        return full_phone_number
+        
+    except Exception as e:
+        logging.error(f"Error getting phone number from database: {e}")
+        return None
+
+
 def make_phone_call(message="Hi Operator, this is the Bawat Container. There is a Safety Alarm. Please attend."):
     """Make phone call using Azure Communication Services and play message when answered"""
     try:
@@ -115,25 +161,34 @@ def make_phone_call(message="Hi Operator, this is the Bawat Container. There is 
             logging.error("Communication Service connection string not configured")
             return False
         
-        if not PHONE_NUMBER_TO_CALL:
-            logging.error("Phone number to call not configured")
-            return False
-        
         if not COMMUNICATION_SERVICE_PHONE_NUMBER:
             logging.error("Communication Service phone number not configured")
             return False
+        
+        # Get phone number from database
+        phone_number_to_call = get_phone_number_from_database()
+        
+        if not phone_number_to_call:
+            logging.error("Could not retrieve phone number from Operator collection")
+            # Fallback to environment variable if available
+            if PHONE_NUMBER_TO_CALL:
+                phone_number_to_call = PHONE_NUMBER_TO_CALL
+                logging.info(f"Using fallback phone number from environment variable: {phone_number_to_call}")
+            else:
+                logging.error("No phone number available from database or environment variable")
+                return False
         
         # Initialize Call Automation Client
         call_automation_client = CallAutomationClient.from_connection_string(
             COMMUNICATION_SERVICE_CONNECTION_STRING
         )
         
-        logging.info(f"Making phone call to {PHONE_NUMBER_TO_CALL}...")
+        logging.info(f"Making phone call to {phone_number_to_call}...")
         
         # Create call
         try:
             # Convert phone numbers to PhoneNumberIdentifier objects
-            target_phone = PhoneNumberIdentifier(PHONE_NUMBER_TO_CALL)
+            target_phone = PhoneNumberIdentifier(phone_number_to_call)
             source_phone = PhoneNumberIdentifier(COMMUNICATION_SERVICE_PHONE_NUMBER)
             
             callback_url = CALLBACK_URL or f"https://{os.environ.get('WEBSITE_HOSTNAME', 'localhost')}/api/callbacks"
