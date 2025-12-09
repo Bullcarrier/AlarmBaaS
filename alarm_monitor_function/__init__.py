@@ -120,10 +120,8 @@ def get_phone_number_from_database():
         db = client[COSMOS_DATABASE]
         operator_collection = db["Operator"]
         
-        # Get the most recent document from Operator collection
-        latest_doc = operator_collection.find_one(
-            sort=[("createdAt", -1)]  # Sort by createdAt descending to get latest
-        )
+        # Get the document from Operator collection (there should only be one)
+        latest_doc = operator_collection.find_one()
         
         if not latest_doc:
             logging.error("No documents found in Operator collection")
