@@ -9,6 +9,7 @@ import time
 from datetime import datetime, timedelta
 import azure.functions as func
 from pymongo import MongoClient
+from bson import ObjectId
 from azure.communication.callautomation import CallAutomationClient, PhoneNumberIdentifier
 
 # Try to import media source classes for playing audio
@@ -59,6 +60,33 @@ def parse_timestamp(timestamp_value):
     return None
 
 
+def get_document_time(doc):
+    """
+    Get a datetime for a document, using 'timestamp' when present,
+    otherwise falling back to the ObjectId generation time.
+    """
+    if not doc:
+        return None
+
+    # First try explicit 'timestamp' field
+    if "timestamp" in doc:
+        ts = parse_timestamp(doc["timestamp"])
+        if ts:
+            return ts
+
+    # Fallback: use ObjectId generation time
+    try:
+        _id = doc.get("_id")
+        if isinstance(_id, ObjectId):
+            return _id.generation_time
+        if isinstance(_id, str):
+            return ObjectId(_id).generation_time
+    except Exception as e:
+        logging.debug(f"Could not derive time from _id: {e}")
+
+    return None
+
+
 def check_alarm_in_cosmosdb():
     """Check CosmosDB for alarm condition"""
     try:
@@ -95,12 +123,10 @@ def check_alarm_in_cosmosdb():
         # Check for alarm field
         alarm_value = latest_doc.get(ALARM_FIELD)
         
-        # Parse timestamp if available
-        timestamp = None
-        if 'timestamp' in latest_doc:
-            timestamp = parse_timestamp(latest_doc['timestamp'])
+        # Get best-effort document time for logging
+        latest_time = get_document_time(latest_doc)
         
-        logging.info(f"Latest document: ID={latest_doc.get('_id')}, Alarm={alarm_value}, Timestamp={timestamp}")
+        logging.info(f"Latest document: ID={latest_doc.get('_id')}, Alarm={alarm_value}, Timestamp={latest_time}")
         
         return alarm_value, latest_doc, previous_doc
         
@@ -306,17 +332,15 @@ def main(timer: func.TimerRequest) -> None:
         alarm_value, doc, previous_doc = result
         doc_id = str(doc.get('_id', 'unknown'))
         
-        # Parse and format timestamp for logging
+        # Parse and format timestamp for logging (using timestamp field or _id fallback)
         timestamp_str = "N/A"
-        timestamp = None
-        if 'timestamp' in doc:
-            timestamp = parse_timestamp(doc['timestamp'])
-            if timestamp:
-                timestamp_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = get_document_time(doc)
+        if timestamp:
+            timestamp_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
 
         # Calculate and log time since last message if previous document exists
-        if previous_doc and 'timestamp' in previous_doc:
-            prev_timestamp = parse_timestamp(previous_doc['timestamp'])
+        if previous_doc:
+            prev_timestamp = get_document_time(previous_doc)
             if timestamp and prev_timestamp:
                 time_since_last_message = (timestamp - prev_timestamp).total_seconds()
                 if time_since_last_message >= 0:
