@@ -342,12 +342,11 @@ def main(timer: func.TimerRequest) -> None:
                 timestamp = timestamp.replace(tzinfo=None)
             timestamp_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
 
-        # Compute age of latest message relative to "now" (per-run age)
+        # Compute age of latest message relative to now (per-run age) — use now_utc so age is positive
         age_seconds = None
         if timestamp:
-            age_seconds = (current_time_adjusted - timestamp).total_seconds()
-            if age_seconds >= 0:
-                logging.info(f"Age of latest message (seconds) = {int(age_seconds)}")
+            age_seconds = (now_utc - timestamp).total_seconds()
+            logging.info(f"Age of latest message (seconds) = {int(age_seconds)}")
 
         # Calculate and log time since last message if previous document exists
         if previous_doc:
