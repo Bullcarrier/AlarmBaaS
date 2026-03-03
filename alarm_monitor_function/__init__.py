@@ -73,10 +73,11 @@ def check_alarm_in_cosmosdb():
         db = client[COSMOS_DATABASE]
         collection = db[COSMOS_COLLECTION]
         
-        # Get the most recent document
-        latest_doc = collection.find_one(
-            sort=[("_id", -1)]  # Sort by _id descending to get latest
-        )
+        # Get the two most recent documents (latest and previous)
+        cursor = collection.find().sort("_id", -1).limit(2)
+        docs = list(cursor)
+        latest_doc = docs[0] if docs else None
+        previous_doc = docs[1] if len(docs) > 1 else None
         
         if not latest_doc:
             logging.info(f"No documents found in collection '{COSMOS_COLLECTION}' in database '{COSMOS_DATABASE}'")
@@ -101,7 +102,7 @@ def check_alarm_in_cosmosdb():
         
         logging.info(f"Latest document: ID={latest_doc.get('_id')}, Alarm={alarm_value}, Timestamp={timestamp}")
         
-        return alarm_value, latest_doc
+        return alarm_value, latest_doc, previous_doc
         
     except Exception as e:
         logging.error(f"Error checking CosmosDB: {e}")
@@ -302,21 +303,31 @@ def main(timer: func.TimerRequest) -> None:
             logging.info("No data found or error checking CosmosDB")
             return
         
-        alarm_value, doc = result
+        alarm_value, doc, previous_doc = result
         doc_id = str(doc.get('_id', 'unknown'))
         
         # Parse and format timestamp for logging
         timestamp_str = "N/A"
+        timestamp = None
         if 'timestamp' in doc:
             timestamp = parse_timestamp(doc['timestamp'])
             if timestamp:
                 timestamp_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+
+        # Calculate and log time since last message if previous document exists
+        if previous_doc and 'timestamp' in previous_doc:
+            prev_timestamp = parse_timestamp(previous_doc['timestamp'])
+            if timestamp and prev_timestamp:
+                time_since_last_message = (timestamp - prev_timestamp).total_seconds()
+                if time_since_last_message >= 0:
+                    logging.info(f"Time since last message (seconds) = {int(time_since_last_message)}")
         
         # Log timestamp and alarm status (visible in log stream)
-        logging.info(f"Timestamp last occurrence: {timestamp_str}. Alarm signal: {alarm_value}")
+        call_service_value = doc.get("CallService", 0)
+        logging.info(f"Timestamp last occurrence: {timestamp_str}. Alarm signal: {alarm_value}, CallService: {call_service_value}")
         
         # Check if alarm is triggered
-        if alarm_value == 1:
+        if alarm_value == 1 and call_service_value == 1:
             # Only make call if alarm state changed (avoid duplicate calls)
             if last_alarm_state.get(doc_id) != 1:
                 logging.warning(f"⚠️  ALARM TRIGGERED! {ALARM_FIELD} = 1")
@@ -354,9 +365,10 @@ def cosmosdb_trigger(documents: func.DocumentList) -> None:
             
             # Check for alarm field
             alarm_value = doc_dict.get(ALARM_FIELD)
+            call_service_value = doc_dict.get("CallService", 0)
             doc_id = str(doc_dict.get('_id', 'unknown'))
             
-            if alarm_value == 1:
+            if alarm_value == 1 and call_service_value == 1:
                 # Check if we already notified for this alarm
                 if last_alarm_state.get(doc_id) != 1:
                     logging.warning(f"⚠️  ALARM TRIGGERED in new document! {ALARM_FIELD} = 1")
