@@ -6,7 +6,7 @@ import logging
 import os
 import json
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import azure.functions as func
 from pymongo import MongoClient
 from bson import ObjectId
@@ -318,8 +318,8 @@ def main(timer: func.TimerRequest) -> None:
     Note: Time comparisons use -1 hour adjustment for DB timezone alignment
     """
     try:
-        # Adjust time -1 hour for DB comparison
-        now_utc = datetime.now(timezone.utc)
+        # Adjust time -1 hour for DB comparison (naive UTC)
+        now_utc = datetime.utcnow()
         current_time_adjusted = now_utc - timedelta(hours=1)
         logging.info(f"Timer trigger executed at {now_utc} (DB comparison time: {current_time_adjusted})")
         
@@ -337,9 +337,9 @@ def main(timer: func.TimerRequest) -> None:
         timestamp_str = "N/A"
         timestamp = get_document_time(doc)
         if timestamp:
-            # Normalize to naive UTC for consistent arithmetic
-            if timestamp.tzinfo is not None:
-                timestamp = timestamp.astimezone(timezone.utc).replace(tzinfo=None)
+            # Normalize to naive for consistent arithmetic
+            if getattr(timestamp, "tzinfo", None) is not None:
+                timestamp = timestamp.replace(tzinfo=None)
             timestamp_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
 
         # Compute age of latest message relative to "now" (per-run age)
@@ -353,8 +353,8 @@ def main(timer: func.TimerRequest) -> None:
         if previous_doc:
             prev_timestamp = get_document_time(previous_doc)
             if timestamp and prev_timestamp:
-                if prev_timestamp.tzinfo is not None:
-                    prev_timestamp = prev_timestamp.astimezone(timezone.utc).replace(tzinfo=None)
+                if getattr(prev_timestamp, "tzinfo", None) is not None:
+                    prev_timestamp = prev_timestamp.replace(tzinfo=None)
                 time_since_last_message = (timestamp - prev_timestamp).total_seconds()
                 if time_since_last_message >= 0:
                     logging.info(f"Time since last message (seconds) = {int(time_since_last_message)}")
