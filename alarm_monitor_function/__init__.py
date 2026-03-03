@@ -338,6 +338,13 @@ def main(timer: func.TimerRequest) -> None:
         if timestamp:
             timestamp_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
 
+        # Compute age of latest message relative to "now" (per-run age)
+        age_seconds = None
+        if timestamp:
+            age_seconds = (current_time_adjusted - timestamp).total_seconds()
+            if age_seconds >= 0:
+                logging.info(f"Age of latest message (seconds) = {int(age_seconds)}")
+
         # Calculate and log time since last message if previous document exists
         if previous_doc:
             prev_timestamp = get_document_time(previous_doc)
@@ -349,9 +356,19 @@ def main(timer: func.TimerRequest) -> None:
         # Log timestamp and alarm status (visible in log stream)
         call_service_value = doc.get("CallService", 0)
         logging.info(f"Timestamp last occurrence: {timestamp_str}. Alarm signal: {alarm_value}, CallService: {call_service_value}")
+
+        # Determine if alarm should be considered active:
+        # 1) Normal case: Alarm field is 1 and CallService is 1
+        # 2) Signal-loss case: message age > 120s and CallService is 1 (treat as alarm)
+        is_alarm_active = (alarm_value == 1 and call_service_value == 1)
+        if age_seconds is not None and age_seconds > 120 and call_service_value == 1:
+            logging.warning(
+                f"⚠️  Alarm forced due to signal loss: age={int(age_seconds)}s, CallService={call_service_value}"
+            )
+            is_alarm_active = True
         
-        # Check if alarm is triggered
-        if alarm_value == 1 and call_service_value == 1:
+        # Check if alarm is triggered (normal or signal-loss)
+        if is_alarm_active:
             # Only make call if alarm state changed (avoid duplicate calls)
             if last_alarm_state.get(doc_id) != 1:
                 logging.warning(f"⚠️  ALARM TRIGGERED! {ALARM_FIELD} = 1")
