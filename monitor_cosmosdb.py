@@ -29,6 +29,7 @@ COSMOS_DATABASE = config.get("cosmos_database", "secomeadb")
 COSMOS_COLLECTION = config.get("cosmos_collection", "iotmessages")
 
 ALARM_FIELD = config.get("alarm_field", "Test2OPCUA:CallOperator")
+CALL_SERVICE_FIELD = config.get("call_service_field", "Test2OPCUA:CallService")
 PHONE_NUMBER_TO_CALL = config.get("phone_number_to_call", "")
 COMMUNICATION_SERVICE_CONNECTION_STRING = config.get("communication_service_connection_string", "")
 COMMUNICATION_SERVICE_PHONE_NUMBER = config.get("communication_service_phone_number", "")

@@ -25,6 +25,7 @@ MONGODB_CONNECTION_STRING = os.environ.get("MongoDBConnectionString")
 COSMOS_DATABASE = os.environ.get("COSMOS_DATABASE", "IoTDatabase")
 COSMOS_COLLECTION = os.environ.get("COSMOS_COLLECTION", "iotmessages")
 ALARM_FIELD = os.environ.get("ALARM_FIELD", "Test2OPCUA:CallOperator")
+CALL_SERVICE_FIELD = os.environ.get("CALL_SERVICE_FIELD", "Test2OPCUA:CallService")
 PHONE_NUMBER_TO_CALL = os.environ.get("PHONE_NUMBER_TO_CALL")
 COMMUNICATION_SERVICE_CONNECTION_STRING = os.environ.get("COMMUNICATION_SERVICE_CONNECTION_STRING")
 COMMUNICATION_SERVICE_PHONE_NUMBER = os.environ.get("COMMUNICATION_SERVICE_PHONE_NUMBER")
@@ -359,7 +360,7 @@ def main(timer: func.TimerRequest) -> None:
                     logging.info(f"Time since last message (seconds) = {int(time_since_last_message)}")
         
         # Log timestamp and alarm status (visible in log stream)
-        call_service_value = doc.get("CallService", 0)
+        call_service_value = doc.get(CALL_SERVICE_FIELD, 0)
         logging.info(f"Timestamp last occurrence: {timestamp_str}. Alarm signal: {alarm_value}, CallService: {call_service_value}")
 
         # Determine if alarm should be considered active:
@@ -411,7 +412,7 @@ def cosmosdb_trigger(documents: func.DocumentList) -> None:
             
             # Check for alarm field
             alarm_value = doc_dict.get(ALARM_FIELD)
-            call_service_value = doc_dict.get("CallService", 0)
+            call_service_value = doc_dict.get(CALL_SERVICE_FIELD, 0)
             doc_id = str(doc_dict.get('_id', 'unknown'))
             
             if alarm_value == 1 and call_service_value == 1:
