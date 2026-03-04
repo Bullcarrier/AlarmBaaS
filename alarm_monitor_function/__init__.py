@@ -32,8 +32,9 @@ COMMUNICATION_SERVICE_PHONE_NUMBER = os.environ.get("COMMUNICATION_SERVICE_PHONE
 CALLBACK_URL = os.environ.get("CALLBACK_URL", "")
 AUDIO_FILE_URL = os.environ.get("AUDIO_FILE_URL", "")  # URL to pre-recorded WAV file
 
-# Track last alarm state (in production, use Azure Table Storage or CosmosDB)
+# Track last alarm state and last call time (per function instance)
 last_alarm_state = {}
+last_call_time = {}
 
 
 def parse_timestamp(timestamp_value):
@@ -375,16 +376,34 @@ def main(timer: func.TimerRequest) -> None:
         
         # Check if alarm is triggered (normal or signal-loss)
         if is_alarm_active:
-            # Only make call if alarm state changed (avoid duplicate calls)
+            global last_call_time
+
+            # Enforce a 2-minute cooldown between calls while alarm is active
+            cooldown_seconds = 120
+            last_call = last_call_time.get("global_alarm")
+            if last_call is not None:
+                elapsed_since_call = (now_utc - last_call).total_seconds()
+                if elapsed_since_call < cooldown_seconds:
+                    remaining = int(cooldown_seconds - elapsed_since_call)
+                    logging.info(
+                        f"Alarm active but call cooldown in effect "
+                        f"(next possible call in {remaining} seconds)"
+                    )
+                    # Mark that we've already notified for this alarm state
+                    last_alarm_state[doc_id] = 1
+                    return
+
+            # Only make call if alarm state changed (avoid duplicate calls per document)
             if last_alarm_state.get(doc_id) != 1:
                 logging.warning(f"⚠️  ALARM TRIGGERED! {ALARM_FIELD} = 1")
                 logging.info(f"Document ID: {doc_id}")
-                
+
                 # Make phone call with custom message
                 alarm_message = "Hi Operator, this is the Bawat Container. There is a Safety Alarm. Please attend."
                 make_phone_call(alarm_message)
-                
+
                 last_alarm_state[doc_id] = 1
+                last_call_time["global_alarm"] = now_utc
             else:
                 logging.info("Alarm still active (already notified)")
         else:
