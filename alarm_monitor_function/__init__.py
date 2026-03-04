@@ -26,6 +26,7 @@ COSMOS_DATABASE = os.environ.get("COSMOS_DATABASE", "IoTDatabase")
 COSMOS_COLLECTION = os.environ.get("COSMOS_COLLECTION", "iotmessages")
 ALARM_FIELD = os.environ.get("ALARM_FIELD", "Test2OPCUA:CallOperator")
 CALL_SERVICE_FIELD = os.environ.get("CALL_SERVICE_FIELD", "Test2OPCUA:CallService")
+VOLUME_TREATED_FIELD = os.environ.get("VOLUME_TREATED_FIELD", "Test2OPCUA:VolumeTreated")
 PHONE_NUMBER_TO_CALL = os.environ.get("PHONE_NUMBER_TO_CALL")
 COMMUNICATION_SERVICE_CONNECTION_STRING = os.environ.get("COMMUNICATION_SERVICE_CONNECTION_STRING")
 COMMUNICATION_SERVICE_PHONE_NUMBER = os.environ.get("COMMUNICATION_SERVICE_PHONE_NUMBER")
@@ -363,6 +364,10 @@ def main(timer: func.TimerRequest) -> None:
         # Log timestamp and alarm status (visible in log stream)
         call_service_value = doc.get(CALL_SERVICE_FIELD, 0)
         logging.info(f"Timestamp last occurrence: {timestamp_str}. Alarm signal: {alarm_value}, CallService: {call_service_value}")
+
+        # Log VolumeTreated field for visibility
+        volume_treated_value = doc.get(VOLUME_TREATED_FIELD)
+        logging.info(f"Volume treated ({VOLUME_TREATED_FIELD}) = {volume_treated_value}")
 
         # Determine if alarm should be considered active:
         # 1) Normal case: Alarm field is 1 and CallService is 1
