@@ -239,6 +239,7 @@ def make_phone_call(message="Hi Operator, this is the Bawat Container. There is 
                 logging.info(f"Audio file URL value: {AUDIO_FILE_URL[:50]}...")  # Log first 50 chars
             
             # Play audio file if URL is provided
+            playback_success = True  # default: treat as success when no audio is used
             if AUDIO_FILE_URL and AUDIO_PLAYBACK_AVAILABLE:
                 try:
                     # Get the call connection
@@ -294,12 +295,13 @@ def make_phone_call(message="Hi Operator, this is the Bawat Container. There is 
                     import traceback
                     logging.error(traceback.format_exc())
                     logging.info("Call was created but audio playback failed")
+                    playback_success = False
             elif AUDIO_FILE_URL:
                 logging.warning("Audio file URL configured but FileSource class not available")
             else:
                 logging.info("No audio file URL configured - call created without audio playback")
             
-            return True
+            return playback_success
         except Exception as e:
             logging.error(f"Failed to create call: {e}")
             logging.error(f"Error type: {type(e).__name__}")
