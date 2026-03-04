@@ -378,8 +378,8 @@ def main(timer: func.TimerRequest) -> None:
         if is_alarm_active:
             global last_call_time
 
-            # Enforce a 2-minute cooldown between calls while alarm is active
-            cooldown_seconds = 120
+            # Enforce a 5-minute cooldown between successful calls while alarm is active
+            cooldown_seconds = 300
             last_call = last_call_time.get("global_alarm")
             if last_call is not None:
                 elapsed_since_call = (now_utc - last_call).total_seconds()
@@ -400,10 +400,15 @@ def main(timer: func.TimerRequest) -> None:
 
                 # Make phone call with custom message
                 alarm_message = "Hi Operator, this is the Bawat Container. There is a Safety Alarm. Please attend."
-                make_phone_call(alarm_message)
+                call_success = make_phone_call(alarm_message)
 
-                last_alarm_state[doc_id] = 1
-                last_call_time["global_alarm"] = now_utc
+                if call_success:
+                    # Treat successful initiation as answered and start cooldown
+                    last_alarm_state[doc_id] = 1
+                    last_call_time["global_alarm"] = now_utc
+                else:
+                    # Call failed or was rejected before establishing - retry next cycle
+                    logging.error("Phone call failed or not established; will retry while alarm remains active")
             else:
                 logging.info("Alarm still active (already notified)")
         else:
