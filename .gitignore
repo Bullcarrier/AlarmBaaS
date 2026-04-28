@@ -3,7 +3,3 @@
 local_data.json
 credentials.json
 AZURE_APP_SETTINGS_REFERENCE.md
-
-# Python bytecode
-__pycache__/
-*.pyc
