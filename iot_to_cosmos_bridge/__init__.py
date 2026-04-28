@@ -38,6 +38,29 @@ def _windows_filetime_now() -> int:
     return int((now - windows_epoch).total_seconds() * 10_000_000)
 
 
+def _flatten_v_entries(doc: dict) -> dict:
+    """
+    Flatten Secomea payload shape where telemetry fields are nested in `v` list.
+
+    Example:
+      {"v": [{"ts": ..., "Test2OPCUA:CallOperator": 1}, ...]}
+    becomes:
+      {"Test2OPCUA:CallOperator": 1, "ts": ..., ...}
+    """
+    entries = doc.get("v")
+    if not isinstance(entries, list):
+        return doc
+
+    for item in entries:
+        if not isinstance(item, dict):
+            continue
+        for key, value in item.items():
+            # Keep last observed value for each field in the event packet.
+            doc[key] = value
+
+    return doc
+
+
 def main(events: func.EventHubEvent):
     """Ingest IoT Hub batch and write into Cosmos Mongo collection."""
     if not MONGODB_CONNECTION_STRING:
@@ -56,6 +79,7 @@ def main(events: func.EventHubEvent):
         docs = []
         for ev in events:
             doc = _to_dict(ev)
+            doc = _flatten_v_entries(doc)
 
             # Ensure downstream alarm monitor can sort/parse recency reliably.
             if "_timestamp" not in doc:
