@@ -37,6 +37,26 @@ AUDIO_FILE_URL = os.environ.get("AUDIO_FILE_URL", "")  # URL to pre-recorded WAV
 last_alarm_state = {}
 last_call_time = {}
 
+# Stable alarm runtime state (per function instance).
+# Note: Azure Functions can scale out; this state is best-effort per instance.
+alarm_runtime_state = {
+    # "alarm:global": {
+    #   "active": bool,
+    #   "active_since_utc": datetime|None,
+    #   "forced_mode": bool,
+    #   "forced_since_utc": datetime|None,
+    #   "attempts": int,
+    #   "last_attempt_utc": datetime|None,
+    # }
+}
+
+# Policy settings (configurable)
+# Defaults keep current BaaS behavior close while applying the new structure.
+SIGNAL_LOSS_SECONDS = int(os.environ.get("SIGNAL_LOSS_SECONDS", "120"))
+MAX_FORCED_WINDOW_SECONDS = int(os.environ.get("MAX_FORCED_WINDOW_SECONDS", "900"))  # cap forced mode to 15 minutes
+CALL_RETRY_DELAY_SECONDS = int(os.environ.get("CALL_RETRY_DELAY_SECONDS", "120"))
+MAX_CALL_ATTEMPTS = int(os.environ.get("MAX_CALL_ATTEMPTS", "2"))
+
 
 def parse_timestamp(timestamp_value):
     """
@@ -336,7 +356,7 @@ def main(timer: func.TimerRequest) -> None:
             return
         
         alarm_value, doc, previous_doc = result
-        doc_id = str(doc.get('_id', 'unknown'))
+        doc_id = str(doc.get("_id", "unknown"))
         
         # Parse and format timestamp for logging (using timestamp field or _id fallback)
         timestamp_str = "N/A"
@@ -371,59 +391,131 @@ def main(timer: func.TimerRequest) -> None:
         volume_treated_value = doc.get(VOLUME_TREATED_FIELD)
         logging.info(f"Volume treated ({VOLUME_TREATED_FIELD}) = {volume_treated_value}")
 
-        # Determine if alarm should be considered active:
-        # 1) Normal case: Alarm field is 1 and CallService is 1
-        # 2) Signal-loss case: message age > 120s and CallService is 1 (treat as alarm)
-        is_alarm_active = (alarm_value == 1 and call_service_value == 1)
-        if age_seconds is not None and age_seconds > 120 and call_service_value == 1:
+        # Determine if alarm is active (normal), or forced active (signal-loss) with a bounded window.
+        is_alarm_active_normal = (alarm_value == 1 and call_service_value == 1)
+        is_alarm_active_forced = False
+        if age_seconds is not None and age_seconds > SIGNAL_LOSS_SECONDS and call_service_value == 1:
+            is_alarm_active_forced = True
+
+        # Stable per-unit key (not doc_id). You can override this to support multiple units per app.
+        state_key = os.environ.get("ALARM_STATE_KEY", "alarm:global")
+        state = alarm_runtime_state.get(
+            state_key,
+            {
+                "active": False,
+                "active_since_utc": None,
+                "forced_mode": False,
+                "forced_since_utc": None,
+                "attempts": 0,
+                "last_attempt_utc": None,
+            },
+        )
+
+        # Maintain forced window bookkeeping.
+        if is_alarm_active_forced and not state.get("forced_mode", False):
+            state["forced_mode"] = True
+            state["forced_since_utc"] = now_utc
+        if not is_alarm_active_forced:
+            state["forced_mode"] = False
+            state["forced_since_utc"] = None
+
+        # Apply maximum forced window.
+        if state.get("forced_mode") and state.get("forced_since_utc") is not None:
+            forced_age = (now_utc - state["forced_since_utc"]).total_seconds()
+            if forced_age > MAX_FORCED_WINDOW_SECONDS:
+                logging.warning(
+                    "⚠️  Forced alarm window exceeded; ignoring signal-loss forcing "
+                    f"(forced_age={int(forced_age)}s, max={MAX_FORCED_WINDOW_SECONDS}s)"
+                )
+                is_alarm_active_forced = False
+                state["forced_mode"] = False
+                state["forced_since_utc"] = None
+
+        is_alarm_active_now = is_alarm_active_normal or is_alarm_active_forced
+        if is_alarm_active_forced:
             logging.warning(
-                f"⚠️  Alarm forced due to signal loss: age={int(age_seconds)}s, CallService={call_service_value}"
+                f"⚠️  Alarm forced due to signal loss: age={int(age_seconds)}s, "
+                f"threshold={SIGNAL_LOSS_SECONDS}s, CallService={call_service_value}"
             )
-            is_alarm_active = True
-        
-        # Check if alarm is triggered (normal or signal-loss)
-        if is_alarm_active:
-            global last_call_time
 
-            # Enforce a 5-minute cooldown between successful calls while alarm is active
-            cooldown_seconds = 300
-            last_call = last_call_time.get("global_alarm")
-            if last_call is not None:
-                elapsed_since_call = (now_utc - last_call).total_seconds()
-                if elapsed_since_call < cooldown_seconds:
-                    remaining = int(cooldown_seconds - elapsed_since_call)
-                    logging.info(
-                        f"Alarm active but call cooldown in effect "
-                        f"(next possible call in {remaining} seconds)"
-                    )
-                    # Mark that we've already notified for this alarm state
-                    last_alarm_state[doc_id] = 1
-                    return
-
-            # Only make call if alarm state changed (avoid duplicate calls per document)
-            if last_alarm_state.get(doc_id) != 1:
-                logging.warning(f"⚠️  ALARM TRIGGERED! {ALARM_FIELD} = 1")
-                logging.info(f"Document ID: {doc_id}")
-
-                # Make phone call with custom message
-                alarm_message = "Hi Operator, this is the Bawat Container. There is a Safety Alarm. Please attend."
-                call_success = make_phone_call(alarm_message)
-
-                if call_success:
-                    # Treat successful initiation as answered and start cooldown
-                    last_alarm_state[doc_id] = 1
-                    last_call_time["global_alarm"] = now_utc
-                else:
-                    # Call failed or was rejected before establishing - retry next cycle
-                    logging.error("Phone call failed or not established; will retry while alarm remains active")
-            else:
-                logging.info("Alarm still active (already notified)")
-        else:
-            if last_alarm_state.get(doc_id) == 1:
-                logging.info(f"✅ Alarm cleared: {ALARM_FIELD} = {alarm_value}")
-                last_alarm_state[doc_id] = alarm_value
+        # Transition handling: CLEAR
+        if not is_alarm_active_now:
+            if state.get("active"):
+                logging.info(f"✅ Alarm cleared (state_key={state_key}). {ALARM_FIELD}={alarm_value}")
+                state["active"] = False
+                state["active_since_utc"] = None
+                state["forced_mode"] = False
+                state["forced_since_utc"] = None
+                state["attempts"] = 0
+                state["last_attempt_utc"] = None
             else:
                 logging.info(f"Status OK: {ALARM_FIELD} = {alarm_value}")
+
+            alarm_runtime_state[state_key] = state
+            return
+
+        # Transition handling: START
+        if not state.get("active"):
+            logging.warning(f"⚠️  ALARM ACTIVE (state_key={state_key}). {ALARM_FIELD}={alarm_value}")
+            state["active"] = True
+            state["active_since_utc"] = now_utc
+            state["attempts"] = 0
+            state["last_attempt_utc"] = None
+
+        # Call policy: independent of doc_id.
+        attempts = int(state.get("attempts", 0) or 0)
+        last_attempt_utc = state.get("last_attempt_utc")
+        decision = "WAIT"
+        remaining = None
+
+        if attempts >= MAX_CALL_ATTEMPTS:
+            decision = "STOP"
+        elif attempts == 0:
+            decision = "CALL"
+        else:
+            if last_attempt_utc is None:
+                decision = "CALL"
+            else:
+                elapsed = (now_utc - last_attempt_utc).total_seconds()
+                if elapsed >= CALL_RETRY_DELAY_SECONDS:
+                    decision = "CALL"
+                else:
+                    decision = "WAIT"
+                    remaining = int(CALL_RETRY_DELAY_SECONDS - elapsed)
+
+        logging.info(
+            "Decision: active_now=%s forced=%s attempts=%s last_attempt_age_s=%s decision=%s remaining_s=%s doc_id=%s",
+            True,
+            bool(state.get("forced_mode")),
+            attempts,
+            None if last_attempt_utc is None else int((now_utc - last_attempt_utc).total_seconds()),
+            decision,
+            remaining,
+            doc_id,
+        )
+
+        if decision == "CALL":
+            attempt_no = attempts + 1
+            logging.warning(f"Placing call attempt {attempt_no}/{MAX_CALL_ATTEMPTS}")
+            alarm_message = "Hi Operator, this is the Bawat Container. There is a Safety Alarm. Please attend."
+            call_initiated = make_phone_call(alarm_message)
+
+            state["attempts"] = attempt_no
+            state["last_attempt_utc"] = now_utc
+            alarm_runtime_state[state_key] = state
+
+            if call_initiated:
+                logging.info("Call initiated (note: create_call != answered; use callbacks for answered detection).")
+            else:
+                logging.error("Call attempt failed to initiate (will retry if policy allows).")
+            return
+
+        # WAIT / STOP paths
+        alarm_runtime_state[state_key] = state
+        if decision == "WAIT" and remaining is not None:
+            logging.info(f"Alarm active; waiting {remaining}s before next allowed attempt.")
+        elif decision == "STOP":
+            logging.warning("Alarm active but maximum call attempts reached; no further calls until cleared.")
     except Exception as e:
         logging.error(f"Error in monitor_timer_trigger: {e}")
         import traceback
