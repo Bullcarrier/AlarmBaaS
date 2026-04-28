@@ -8,7 +8,7 @@
       "eventHubName": "messages/events",
       "connection": "IoTHubEventHubConnectionString",
       "cardinality": "many",
-      "consumerGroup": "cosmos-bridge"
+      "consumerGroup": "$Default"
     }
   ]
 }
