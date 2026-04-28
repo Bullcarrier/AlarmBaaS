@@ -97,6 +97,12 @@ def get_document_time(doc):
         if ts:
             return ts
 
+    # Next try '_timestamp' (commonly used in Secomea payloads as Windows FILETIME)
+    if "_timestamp" in doc:
+        ts = parse_timestamp(doc["_timestamp"])
+        if ts:
+            return ts
+
     # Fallback: use ObjectId generation time
     try:
         _id = doc.get("_id")
@@ -124,9 +130,27 @@ def check_alarm_in_cosmosdb():
         db = client[COSMOS_DATABASE]
         collection = db[COSMOS_COLLECTION]
         
-        # Get the two most recent documents (latest and previous)
-        cursor = collection.find().sort("_id", -1).limit(2)
-        docs = list(cursor)
+        # Get the two most recent documents (latest and previous).
+        # Important: In some collections, `_id` is a string (not ObjectId) and lexicographic sorting
+        # can pick the wrong "latest" document. Prefer `_timestamp` (FILETIME) when present.
+        base_filter = {}
+        docs = []
+
+        # Prefer messages that actually contain the alarm field.
+        filter_with_alarm = {**base_filter, ALARM_FIELD: {"$exists": True}}
+
+        # Try sorting by `_timestamp` first (newest first).
+        try:
+            cursor = collection.find(filter_with_alarm).sort("_timestamp", -1).limit(2)
+            docs = list(cursor)
+        except Exception as sort_e:
+            logging.warning(f"Could not sort by _timestamp: {sort_e}")
+            docs = []
+
+        # Fallback: sort by `_id` (works when `_id` is ObjectId; may be imperfect otherwise).
+        if not docs:
+            cursor = collection.find(filter_with_alarm).sort("_id", -1).limit(2)
+            docs = list(cursor)
         latest_doc = docs[0] if docs else None
         previous_doc = docs[1] if len(docs) > 1 else None
         
