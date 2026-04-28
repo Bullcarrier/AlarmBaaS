@@ -56,6 +56,12 @@ SIGNAL_LOSS_SECONDS = int(os.environ.get("SIGNAL_LOSS_SECONDS", "120"))
 MAX_FORCED_WINDOW_SECONDS = int(os.environ.get("MAX_FORCED_WINDOW_SECONDS", "900"))  # cap forced mode to 15 minutes
 CALL_RETRY_DELAY_SECONDS = int(os.environ.get("CALL_RETRY_DELAY_SECONDS", "120"))
 MAX_CALL_ATTEMPTS = int(os.environ.get("MAX_CALL_ATTEMPTS", "2"))
+ALLOW_ALARM_WITHOUT_CALL_SERVICE = os.environ.get("ALLOW_ALARM_WITHOUT_CALL_SERVICE", "false").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
 
 
 def parse_timestamp(timestamp_value):
@@ -416,7 +422,14 @@ def main(timer: func.TimerRequest) -> None:
         logging.info(f"Volume treated ({VOLUME_TREATED_FIELD}) = {volume_treated_value}")
 
         # Determine if alarm is active (normal), or forced active (signal-loss) with a bounded window.
+        # Optional compatibility mode: allow CallOperator-only alarms when CallService is missing/0.
         is_alarm_active_normal = (alarm_value == 1 and call_service_value == 1)
+        if not is_alarm_active_normal and ALLOW_ALARM_WITHOUT_CALL_SERVICE and alarm_value == 1:
+            logging.warning(
+                "⚠️  CallService bypass active (ALLOW_ALARM_WITHOUT_CALL_SERVICE=true). "
+                f"Treating alarm as active with {ALARM_FIELD}=1 and {CALL_SERVICE_FIELD}={call_service_value}."
+            )
+            is_alarm_active_normal = True
         is_alarm_active_forced = False
         if age_seconds is not None and age_seconds > SIGNAL_LOSS_SECONDS and call_service_value == 1:
             is_alarm_active_forced = True
