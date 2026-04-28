@@ -1,0 +1,15 @@
+{
+  "scriptFile": "__init__.py",
+  "bindings": [
+    {
+      "name": "events",
+      "type": "eventHubTrigger",
+      "direction": "in",
+      "eventHubName": "messages/events",
+      "connection": "IoTHubEventHubConnectionString",
+      "cardinality": "many",
+      "consumerGroup": "cosmos-bridge"
+    }
+  ]
+}
+
